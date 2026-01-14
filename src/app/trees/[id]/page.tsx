@@ -314,15 +314,17 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
                     🗑️ この樹木を削除
                 </button>
 
-                {/* 印刷用ラベル（画面上は隠れている） */}
-                <PrintLabel
-                    treeId={tree.id}
-                    treeNumber={tree.tree_number}
-                    speciesName={tree.species?.name}
-                    url={`${typeof window !== 'undefined' ? window.location.origin : ''}/trees/${tree.id}`}
-                />
-            </main>
-        </div>
+            </button>
+        </main>
+
+            {/* 印刷用ラベル（画面上は隠れ、印刷時だけ見える） */ }
+    <PrintLabel
+        treeId={tree.id}
+        treeNumber={tree.tree_number}
+        speciesName={tree.species?.name}
+        url={`${typeof window !== 'undefined' ? window.location.origin : ''}/trees/${tree.id}`}
+    />
+        </div >
     )
 }
 
