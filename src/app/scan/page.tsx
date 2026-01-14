@@ -41,7 +41,7 @@ export default function ScanPage() {
             }
         }
 
-        function onScanError(err: any) {
+        function onScanError() {
             // スキャン失敗（読み取り中）は無視
         }
 
