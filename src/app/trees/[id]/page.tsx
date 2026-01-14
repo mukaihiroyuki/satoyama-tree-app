@@ -106,7 +106,7 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
         }
 
         // 再読み込み
-        await fetchTree(tree.id)
+        refreshData()
         setUploading(false)
     }
 
@@ -126,7 +126,7 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
             return
         }
 
-        await fetchTree(tree.id)
+        refreshData()
     }
 
     // 削除
