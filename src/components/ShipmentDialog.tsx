@@ -26,24 +26,23 @@ export default function ShipmentDialog({ isOpen, onClose, selectedIds, selectedT
     const [newClientName, setNewClientName] = useState('')
 
     useEffect(() => {
+        async function fetchClients() {
+            const supabase = createClient()
+            const { data } = await supabase.from('clients').select('id, name').order('name')
+            setClients(data || [])
+            if (data && data.length > 0 && !selectedClientId) {
+                setSelectedClientId(data[0].id)
+            }
+        }
         if (isOpen) {
             fetchClients()
         }
-    }, [isOpen])
-
-    async function fetchClients() {
-        const supabase = createClient()
-        const { data } = await supabase.from('clients').select('id, name').order('name')
-        setClients(data || [])
-        if (data && data.length > 0 && !selectedClientId) {
-            setSelectedClientId(data[0].id)
-        }
-    }
+    }, [isOpen, selectedClientId])
 
     async function handleAddClient() {
         if (!newClientName) return
         const supabase = createClient()
-        const { data, error } = await supabase.from('clients').insert({ name: newClientName }).select().single()
+        const { data } = await supabase.from('clients').insert({ name: newClientName }).select().single()
         if (data) {
             setClients(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
             setSelectedClientId(data.id)

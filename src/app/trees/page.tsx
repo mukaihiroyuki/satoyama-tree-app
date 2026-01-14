@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import ShipmentDialog from '@/components/ShipmentDialog'
@@ -48,11 +48,7 @@ export default function TreesPage() {
     const [isShipmentDialogOpen, setIsShipmentDialogOpen] = useState(false)
 
     // 初回読み込み
-    useEffect(() => {
-        fetchData()
-    }, [])
-
-    async function fetchData() {
+    const fetchData = useCallback(async () => {
         const supabase = createClient()
 
         // 樹種一覧
@@ -78,7 +74,11 @@ export default function TreesPage() {
         setLocations(uniqueLocations)
 
         setLoading(false)
-    }
+    }, [])
+
+    useEffect(() => {
+        fetchData()
+    }, [fetchData])
 
     // 成功時のリフレッシュ
     const handleShipmentSuccess = () => {
