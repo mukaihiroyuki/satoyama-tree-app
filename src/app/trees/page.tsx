@@ -47,43 +47,45 @@ export default function TreesPage() {
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [isShipmentDialogOpen, setIsShipmentDialogOpen] = useState(false)
 
-    // 初回読み込み
-    const fetchData = useCallback(async () => {
-        const supabase = createClient()
-
-        // 樹種一覧
-        const { data: speciesData } = await supabase
-            .from('species_master')
-            .select('id, name')
-            .order('name_kana')
-        setSpecies(speciesData || [])
-
-        // 樹木一覧
-        const { data: treesData } = await supabase
-            .from('trees')
-            .select(`*, species:species_master(name)`)
-            .order('tree_number', { ascending: false })
-        setTrees(treesData || [])
-
-        // 場所一覧（ユニーク値）
-        const uniqueLocations = [...new Set(
-            (treesData || [])
-                .map(t => t.location)
-                .filter(Boolean)
-        )] as string[]
-        setLocations(uniqueLocations)
-
-        setLoading(false)
-    }, [])
+    // 初回読み込みとリフレッシュ用
+    const [refreshSignal, setRefreshSignal] = useState(0)
+    const refreshData = () => setRefreshSignal(prev => prev + 1)
 
     useEffect(() => {
-        fetchData()
-    }, [fetchData])
+        const load = async () => {
+            const supabase = createClient()
+
+            // 樹種一覧
+            const { data: speciesData } = await supabase
+                .from('species_master')
+                .select('id, name')
+                .order('name_kana')
+            setSpecies(speciesData || [])
+
+            // 樹木一覧
+            const { data: treesData } = await supabase
+                .from('trees')
+                .select(`*, species:species_master(name)`)
+                .order('tree_number', { ascending: false })
+            setTrees(treesData || [])
+
+            // 場所一覧（ユニーク値）
+            const uniqueLocations = [...new Set(
+                (treesData || [])
+                    .map(t => t.location)
+                    .filter(Boolean)
+            )] as string[]
+            setLocations(uniqueLocations)
+
+            setLoading(false)
+        }
+        load()
+    }, [refreshSignal])
 
     // 成功時のリフレッシュ
     const handleShipmentSuccess = () => {
         setSelectedIds([])
-        fetchData()
+        refreshData()
     }
 
     // フィルタ適用

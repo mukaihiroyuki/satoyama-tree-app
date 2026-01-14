@@ -16,16 +16,15 @@ export default function ClientsPage() {
     const [clients, setClients] = useState<Client[]>([])
     const [loading, setLoading] = useState(true)
 
-    const fetchClients = useCallback(async () => {
-        const supabase = createClient()
-        const { data } = await supabase.from('clients').select('*').order('name')
-        setClients(data || [])
-        setLoading(false)
-    }, [])
-
     useEffect(() => {
+        const fetchClients = async () => {
+            const supabase = createClient()
+            const { data } = await supabase.from('clients').select('*').order('name')
+            setClients(data || [])
+            setLoading(false)
+        }
         fetchClients()
-    }, [fetchClients])
+    }, [])
 
     if (loading) return <div className="p-8">読み込み中...</div>
 

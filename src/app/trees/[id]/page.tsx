@@ -40,26 +40,25 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
     const [loading, setLoading] = useState(true)
     const [uploading, setUploading] = useState(false)
 
-    const fetchTree = useCallback(async (targetId: string) => {
-        const supabase = createClient()
-        const { data, error } = await supabase
-            .from('trees')
-            .select(`*, species:species_master(id, name)`)
-            .eq('id', targetId)
-            .single()
-
-        if (error) {
-            console.error('Error:', error)
-            setLoading(false)
-            return
-        }
-        setTree(data)
-        setLoading(false)
-    }, [])
-
     useEffect(() => {
-        fetchTree(id)
-    }, [id, fetchTree])
+        const fetchTree = async () => {
+            const supabase = createClient()
+            const { data, error } = await supabase
+                .from('trees')
+                .select(`*, species:species_master(id, name)`)
+                .eq('id', id)
+                .single()
+
+            if (error) {
+                console.error('Error:', error)
+                setLoading(false)
+                return
+            }
+            setTree(data)
+            setLoading(false)
+        }
+        fetchTree()
+    }, [id])
 
     // 写真アップロード
     async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {

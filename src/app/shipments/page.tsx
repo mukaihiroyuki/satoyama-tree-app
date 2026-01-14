@@ -21,27 +21,26 @@ export default function ShipmentsPage() {
     const [shipments, setShipments] = useState<Shipment[]>([])
     const [loading, setLoading] = useState(true)
 
-    const fetchShipments = useCallback(async () => {
-        const supabase = createClient()
-        const { data } = await supabase
-            .from('shipments')
-            .select(`
-                id,
-                shipped_at,
-                notes,
-                client:clients(name),
-                shipment_items(id, unit_price)
-            `)
-            .order('shipped_at', { ascending: false })
-            .order('created_at', { ascending: false })
-
-        setShipments(data || [])
-        setLoading(false)
-    }, [])
-
     useEffect(() => {
+        const fetchShipments = async () => {
+            const supabase = createClient()
+            const { data } = await supabase
+                .from('shipments')
+                .select(`
+                    id,
+                    shipped_at,
+                    notes,
+                    client:clients(name),
+                    shipment_items(id, unit_price)
+                `)
+                .order('shipped_at', { ascending: false })
+                .order('created_at', { ascending: false })
+
+            setShipments(data || [])
+            setLoading(false)
+        }
         fetchShipments()
-    }, [fetchShipments])
+    }, [])
 
     if (loading) return <div className="p-8">読み込み中...</div>
 
