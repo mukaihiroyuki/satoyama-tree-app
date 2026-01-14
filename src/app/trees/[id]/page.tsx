@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -33,26 +33,19 @@ const statusLabels: Record<string, { label: string; color: string }> = {
 }
 
 export default function TreeDetailPage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = React.use(params)
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [tree, setTree] = useState<TreeDetail | null>(null)
     const [loading, setLoading] = useState(true)
     const [uploading, setUploading] = useState(false)
-    const [treeId, setTreeId] = useState<string>('')
 
-    useEffect(() => {
-        params.then(p => {
-            setTreeId(p.id)
-            fetchTree(p.id)
-        })
-    }, [params])
-
-    async function fetchTree(id: string) {
+    const fetchTree = useCallback(async (targetId: string) => {
         const supabase = createClient()
         const { data, error } = await supabase
             .from('trees')
             .select(`*, species:species_master(id, name)`)
-            .eq('id', id)
+            .eq('id', targetId)
             .single()
 
         if (error) {
@@ -62,7 +55,11 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
         }
         setTree(data)
         setLoading(false)
-    }
+    }, [])
+
+    useEffect(() => {
+        fetchTree(id)
+    }, [id, fetchTree])
 
     // 写真アップロード
     async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
