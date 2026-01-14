@@ -39,6 +39,8 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
     const [tree, setTree] = useState<TreeDetail | null>(null)
     const [loading, setLoading] = useState(true)
     const [uploading, setUploading] = useState(false)
+    const [refreshSignal, setRefreshSignal] = useState(0)
+    const refreshData = () => setRefreshSignal(prev => prev + 1)
 
     useEffect(() => {
         const fetchTree = async () => {
@@ -58,7 +60,7 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
             setLoading(false)
         }
         fetchTree()
-    }, [id])
+    }, [id, refreshSignal])
 
     // 写真アップロード
     async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
