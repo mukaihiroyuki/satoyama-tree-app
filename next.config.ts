@@ -1,3 +1,4 @@
+// Deploy Trigger: 2026-01-14 16:18
 import type { NextConfig } from "next";
 import withPWAInit from "@ducanh2912/next-pwa";
 
