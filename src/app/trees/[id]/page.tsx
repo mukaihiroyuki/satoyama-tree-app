@@ -171,9 +171,9 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
+        <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 print:bg-white print:min-h-0">
             {/* ヘッダー */}
-            <header className="bg-white shadow-sm border-b border-green-200">
+            <header className="bg-white shadow-sm border-b border-green-200 print:hidden">
                 <div className="max-w-3xl mx-auto px-4 py-6">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
@@ -194,7 +194,7 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
                 </div>
             </header>
 
-            <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+            <main className="max-w-3xl mx-auto px-4 py-8 space-y-6 print:hidden">
                 {/* 写真セクション */}
                 <div className="bg-white rounded-xl shadow-lg p-6">
                     <h2 className="text-lg font-bold text-gray-800 mb-4">📷 写真</h2>
