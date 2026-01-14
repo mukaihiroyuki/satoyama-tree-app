@@ -143,12 +143,6 @@ export default async function Home() {
           )}
         </div>
 
-        {/* 接続確認 */}
-        <div className="mt-8 p-4 bg-green-50 border border-green-200 rounded-lg">
-          <p className="text-green-700">
-            ✅ Supabase接続確認: {species.length > 0 ? '成功！' : 'データなし'}
-          </p>
-        </div>
       </main>
     </div>
   )

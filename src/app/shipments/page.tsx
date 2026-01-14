@@ -98,15 +98,6 @@ export default function ShipmentsPage() {
                     </div>
                 )}
 
-                <div className="mt-8 bg-blue-900 border border-blue-800 rounded-2xl p-6 text-white shadow-xl">
-                    <h3 className="font-bold flex items-center gap-2 text-blue-300">
-                        ✨ 社長へのアピールポイント
-                    </h3>
-                    <p className="text-sm mt-3 opacity-90 leading-relaxed">
-                        一本ずつの在庫管理だけでなく、「いつ・誰に、まとまっていくらで売れたか」という**商売の流れ**が見えるようにしたぜ。<br />
-                        これが「単なる記録アプリ」と「儲けるための管理アプリ」の境目なんだぜ、相棒！
-                    </p>
-                </div>
             </main>
         </div>
     )
