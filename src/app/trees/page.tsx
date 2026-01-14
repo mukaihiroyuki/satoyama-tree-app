@@ -318,33 +318,33 @@ export default function TreesPage() {
 
             {/* アクションバー（選択時のみ表示） */}
             {selectedIds.length > 0 && (
-                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-green-900/90 backdrop-blur-md text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-8 border border-green-700 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                    <div className="flex border-r border-green-700 pr-8">
-                        <p className="text-lg">
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] sm:w-auto bg-green-900/95 backdrop-blur-md text-white px-4 py-3 sm:px-6 sm:py-4 rounded-2xl shadow-2xl flex flex-col sm:flex-row items-center gap-3 sm:gap-8 border border-green-700 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    <div className="flex sm:border-r sm:border-green-700 sm:pr-8">
+                        <p className="text-base sm:text-lg whitespace-nowrap">
                             <span className="font-bold text-green-400 mr-2">{selectedIds.length}</span>
                             本を選択中
                         </p>
                     </div>
-                    <div className="flex gap-4">
+                    <div className="flex gap-2 sm:gap-4 overflow-x-auto w-full sm:w-auto justify-center">
                         <button
                             onClick={() => alert(`機能開発中: ${selectedIds.length}本を予約する`)}
-                            className="bg-yellow-600 hover:bg-yellow-700 px-6 py-2 rounded-xl font-bold transition-all active:scale-95 whitespace-nowrap"
+                            className="bg-yellow-600 hover:bg-yellow-700 px-4 sm:px-6 py-2 rounded-xl font-bold transition-all active:scale-95 whitespace-nowrap text-sm sm:text-base"
                         >
-                            🗓️ 予約する
+                            🗓️ 予約
                         </button>
                         <button
                             onClick={() => setIsShipmentDialogOpen(true)}
-                            className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-xl font-bold transition-all active:scale-95 whitespace-nowrap"
+                            className="bg-blue-600 hover:bg-blue-700 px-4 sm:px-6 py-2 rounded-xl font-bold transition-all active:scale-95 whitespace-nowrap text-sm sm:text-base"
                         >
-                            📦 出荷する
+                            📦 出荷
+                        </button>
+                        <button
+                            onClick={() => setSelectedIds([])}
+                            className="text-green-300 hover:text-white transition-colors text-sm sm:text-base px-2 py-2"
+                        >
+                            × 停止
                         </button>
                     </div>
-                    <button
-                        onClick={() => setSelectedIds([])}
-                        className="text-green-300 hover:text-white transition-colors"
-                    >
-                        キャンセル
-                    </button>
                 </div>
             )}
 
