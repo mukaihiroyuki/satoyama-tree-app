@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 
@@ -16,16 +16,16 @@ export default function ClientsPage() {
     const [clients, setClients] = useState<Client[]>([])
     const [loading, setLoading] = useState(true)
 
-    useEffect(() => {
-        fetchClients()
-    }, [])
-
-    async function fetchClients() {
+    const fetchClients = useCallback(async () => {
         const supabase = createClient()
         const { data } = await supabase.from('clients').select('*').order('name')
         setClients(data || [])
         setLoading(false)
-    }
+    }, [])
+
+    useEffect(() => {
+        fetchClients()
+    }, [fetchClients])
 
     if (loading) return <div className="p-8">読み込み中...</div>
 

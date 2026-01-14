@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 
@@ -10,7 +10,7 @@ interface Shipment {
     notes: string | null
     client: {
         name: string
-    } | null
+    } | { name: string }[] | null
     shipment_items: {
         id: string
         unit_price: number
@@ -21,11 +21,7 @@ export default function ShipmentsPage() {
     const [shipments, setShipments] = useState<Shipment[]>([])
     const [loading, setLoading] = useState(true)
 
-    useEffect(() => {
-        fetchShipments()
-    }, [])
-
-    async function fetchShipments() {
+    const fetchShipments = useCallback(async () => {
         const supabase = createClient()
         const { data } = await supabase
             .from('shipments')
@@ -41,7 +37,11 @@ export default function ShipmentsPage() {
 
         setShipments(data || [])
         setLoading(false)
-    }
+    }, [])
+
+    useEffect(() => {
+        fetchShipments()
+    }, [fetchShipments])
 
     if (loading) return <div className="p-8">読み込み中...</div>
 
@@ -75,7 +75,9 @@ export default function ShipmentsPage() {
                                                 {s.shipped_at}
                                             </div>
                                             <div>
-                                                <h3 className="font-bold text-gray-800">{s.client?.name || '不明なクライアント'}</h3>
+                                                <h3 className="font-bold text-gray-800">
+                                                    {Array.isArray(s.client) ? s.client[0]?.name : s.client?.name || '不明なクライアント'}
+                                                </h3>
                                                 <p className="text-xs text-gray-400 mt-0.5">{itemCount} 本の樹木</p>
                                             </div>
                                         </div>
