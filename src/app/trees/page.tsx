@@ -111,7 +111,6 @@ export default function TreesPage() {
         )
     }
 
-    // 選択中の樹木データ取得
     const selectedTreesData = trees
         .filter(t => selectedIds.includes(t.id))
         .map(t => ({
@@ -120,6 +119,37 @@ export default function TreesPage() {
             species_name: t.species?.name || '不明',
             price: t.price
         }))
+
+    // CSVダウンロード機能
+    const downloadCSV = () => {
+        const headers = ["No.", "樹種", "樹高(m)", "本立ち", "上代(円)", "状態", "場所", "入荷日", "備考"]
+        const rows = filteredTrees.map(t => [
+            `#${t.tree_number}`,
+            t.species?.name || '-',
+            t.height,
+            t.trunk_count,
+            t.price,
+            statusLabels[t.status]?.label || t.status,
+            t.location || '-',
+            t.arrived_at,
+            t.notes || ''
+        ])
+
+        const csvContent = [headers, ...rows]
+            .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+            .join('\n')
+
+        const bom = new Uint8Array([0xEF, 0xBB, 0xBF]) // Excel対応(BOM付きUTF-8)
+        const blob = new Blob([bom, csvContent], { type: 'text/csv;charset=utf-8;' })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.setAttribute('href', url)
+        link.setAttribute('download', `satoyama_inventory_${new Date().toISOString().split('T')[0]}.csv`)
+        link.style.visibility = 'hidden'
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+    }
 
     if (loading) {
         return (
@@ -311,6 +341,12 @@ export default function TreesPage() {
                                     : `${filteredTrees.length} 件 / 全 ${trees.length} 件`
                                 }
                             </p>
+                            <button
+                                onClick={downloadCSV}
+                                className="text-sm font-bold text-green-700 hover:text-green-900 flex items-center gap-1 bg-white border border-green-200 px-3 py-1.5 rounded-lg shadow-sm hover:bg-green-50 transition-all"
+                            >
+                                📥 CSV出力 (Excel用)
+                            </button>
                         </div>
                     </div>
                 )}
