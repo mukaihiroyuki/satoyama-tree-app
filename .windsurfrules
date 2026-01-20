@@ -1,0 +1,11 @@
+# AI Indexing Exclusions
+The following directories are excluded from AI indexing to prevent excessive file I/O and performance issues.
+
+- node_modules/
+- .next/
+- .vercel/
+- .obsidian/
+- .trash/
+- dist/
+- build/
+- out/

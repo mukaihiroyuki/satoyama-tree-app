@@ -1,0 +1,39 @@
+{
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.next": true,
+    "**/dist": true,
+    "**/build": true,
+    "**/.git": true,
+    "**/.DS_Store": true,
+    "**/package-lock.json": true,
+    "**/out": true,
+    "**/.vercel": true,
+    "**/*.tsbuildinfo": true,
+    "**/.obsidian": true,
+    "**/.trash": true
+  },
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/node_modules/**": true,
+    "**/.next/**": true,
+    "**/dist/**": true,
+    "**/build/**": true,
+    "**/out/**": true,
+    "**/.vercel/**": true,
+    "**/.obsidian/**": true,
+    "**/.trash/**": true
+  },
+  "files.exclude": {
+    "**/.git": true,
+    "**/.DS_Store": true,
+    "**/node_modules": true,
+    "**/.next": true,
+    "**/.obsidian": true
+  },
+  "editor.minimap.enabled": false,
+  "git.autorefresh": false,
+  "typescript.updateImportsOnFileMove.enabled": "never",
+  "javascript.updateImportsOnFileMove.enabled": "never"
+}
