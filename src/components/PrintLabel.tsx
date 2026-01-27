@@ -2,14 +2,72 @@
 
 import { QRCodeSVG } from 'qrcode.react'
 
+export type LabelLayout = 'RJ-100' | 'PT-36' | 'PT-24'
+
 interface PrintLabelProps {
     treeId: string
     treeNumber: number
     speciesName: string
     url: string
+    price?: number
+    layout?: LabelLayout
 }
 
-export default function PrintLabel({ treeId, treeNumber, speciesName, url }: PrintLabelProps) {
+export default function PrintLabel({
+    treeId,
+    treeNumber,
+    speciesName,
+    url,
+    price,
+    layout = 'RJ-100'
+}: PrintLabelProps) {
+    if (layout === 'PT-36' || layout === 'PT-24') {
+        // PTシリーズ（36mm or 24mm幅）用：羽ラベル（フラッグ）スタイル
+        const heightMm = layout === 'PT-36' ? 36 : 24
+        const qrSize = layout === 'PT-36' ? 80 : 55
+
+        return (
+            <div id="print-label" className="hidden print:block bg-white text-black font-sans">
+                <style dangerouslySetInnerHTML={{
+                    __html: `
+                    @media print {
+                        @page {
+                            size: auto;
+                            margin: 0;
+                        }
+                        #print-label {
+                            width: 150mm;
+                            height: ${heightMm}mm;
+                            padding: 2mm;
+                            display: flex !important;
+                            flex-direction: row;
+                            align-items: center;
+                            justify-content: space-between;
+                        }
+                    }
+                `}} />
+
+                {/* 左側：樹種名と番号 */}
+                <div className="flex flex-col justify-center h-full pl-4 border-l-8 border-green-800">
+                    <div className="text-[10px] font-bold opacity-70">#{treeNumber}</div>
+                    <div className={`${layout === 'PT-36' ? 'text-xl' : 'text-sm'} font-black leading-tight`}>{speciesName}</div>
+                    {price && <div className={`${layout === 'PT-36' ? 'text-lg' : 'text-xs'} font-bold`}>¥{price.toLocaleString()}</div>}
+                </div>
+
+                {/* 右側：QRコード */}
+                <div className="flex items-center pr-4">
+                    <QRCodeSVG
+                        value={url}
+                        size={qrSize}
+                        level="M"
+                        includeMargin={false}
+                    />
+                </div>
+            </div>
+        )
+    }
+
+    // デフォルト：RJ-4250WB (100mm幅) 用：大判スタイル
     return (
         <div id="print-label" className="hidden print:block print:w-[101.6mm] print:h-[152.4mm] bg-white p-8 border-2 border-black">
             <div className="flex flex-col items-center justify-between h-full text-black">
