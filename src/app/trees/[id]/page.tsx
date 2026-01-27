@@ -207,7 +207,7 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
                         <div className="flex items-center gap-2">
                             <select
                                 value={printLayout}
-                                onChange={(e) => setPrintLayout(e.target.value as any)}
+                                onChange={(e) => setPrintLayout(e.target.value as 'RJ-100' | 'PT-36' | 'PT-24')}
                                 className="text-sm border-green-300 rounded-md py-2 px-1 text-green-700 font-bold bg-green-50"
                             >
                                 <option value="PT-36">PT-36 (36mm)</option>
