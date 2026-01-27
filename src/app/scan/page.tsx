@@ -27,16 +27,21 @@ export default function ScanPage() {
             setScanResult(decodedText)
             scanner.clear() // スキャナーを停止
 
+            // UUID形式の検証用正規表現
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
             // URLがこのアプリのドメインを含んでいるか、または相対パスかチェック
-            // 簡易的に '/trees/' が含まれているか確認
             if (decodedText.includes('/trees/')) {
                 const id = decodedText.split('/trees/').pop()
-                if (id) {
+                // UUID形式を検証してからルーティング
+                if (id && uuidRegex.test(id)) {
                     router.push(`/trees/${id}`)
+                } else {
+                    alert('無効なQRコードです。正しい樹木タグをスキャンしてください。')
+                    window.location.reload()
                 }
             } else {
-                alert('このQRコードは里山アプリのタグではないようです: ' + decodedText)
-                // 再開するためにリロードまたは再レンダリングが必要な場合がある
+                alert('このQRコードは里山アプリのタグではないようです')
                 window.location.reload()
             }
         }

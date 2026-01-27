@@ -40,6 +40,7 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
     const [loading, setLoading] = useState(true)
     const [uploading, setUploading] = useState(false)
     const [refreshSignal, setRefreshSignal] = useState(0)
+    const [printLayout, setPrintLayout] = useState<'RJ-100' | 'PT-36' | 'PT-24'>('PT-36') // デフォルトを新購入の36mmに
     const refreshData = () => setRefreshSignal(prev => prev + 1)
 
     useEffect(() => {
@@ -67,11 +68,30 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
         const file = e.target.files?.[0]
         if (!file || !tree) return
 
+        // ファイル検証
+        const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp']
+        const maxFileSize = 5 * 1024 * 1024 // 5MB
+
+        if (!allowedMimeTypes.includes(file.type)) {
+            alert('PNG, JPEG, WebP形式の画像のみ対応しています')
+            return
+        }
+
+        if (file.size > maxFileSize) {
+            alert('5MB以下のファイルをアップロードしてください')
+            return
+        }
+
         setUploading(true)
         const supabase = createClient()
 
-        // ファイル名を生成
-        const fileExt = file.name.split('.').pop()
+        // 安全なファイル拡張子を決定
+        const extMap: Record<string, string> = {
+            'image/jpeg': 'jpg',
+            'image/png': 'png',
+            'image/webp': 'webp'
+        }
+        const fileExt = extMap[file.type] || 'jpg'
         const fileName = `${tree.id}-${Date.now()}.${fileExt}`
 
         // 画像を圧縮（最大幅1200px）
@@ -184,12 +204,23 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
                                 #{tree.tree_number} {tree.species?.name}
                             </h1>
                         </div>
-                        <button
-                            onClick={() => window.print()}
-                            className="bg-white text-green-700 border-2 border-green-600 hover:bg-green-50 px-4 py-2 rounded-lg font-bold flex items-center gap-2"
-                        >
-                            🖨️ ラベル印刷
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <select
+                                value={printLayout}
+                                onChange={(e) => setPrintLayout(e.target.value as any)}
+                                className="text-sm border-green-300 rounded-md py-2 px-1 text-green-700 font-bold bg-green-50"
+                            >
+                                <option value="PT-36">PT-36 (36mm)</option>
+                                <option value="PT-24">PT-24 (24mm)</option>
+                                <option value="RJ-100">RJ-100 (100mm)</option>
+                            </select>
+                            <button
+                                onClick={() => window.print()}
+                                className="bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-sm"
+                            >
+                                🖨️ 印刷
+                            </button>
+                        </div>
                     </div>
                 </div>
             </header>
@@ -320,7 +351,9 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
                 treeId={tree.id}
                 treeNumber={tree.tree_number}
                 speciesName={tree.species?.name}
+                price={tree.price}
                 url={`${typeof window !== 'undefined' ? window.location.origin : ''}/trees/${tree.id}`}
+                layout={printLayout}
             />
         </div>
     )
