@@ -271,18 +271,24 @@ export default function NewTreePage() {
                         />
                     </div>
 
-                    {/* 場所 */}
+                    {/* 圃場選択 */}
                     <div className="space-y-3">
                         <label className="block text-sm font-bold text-gray-700">
-                            圃場内の場所
+                            圃場
                         </label>
-                        <input
-                            type="text"
+                        <select
                             value={formData.location}
                             onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                            placeholder="例: A区画 北側"
-                            className="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                        />
+                            className="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white"
+                        >
+                            <option value="">選択してください</option>
+                            <option value="第1圃場（倉石1）">第1圃場（倉石1）</option>
+                            <option value="第2圃場（倉石2）">第2圃場（倉石2）</option>
+                            <option value="第3圃場（岡堀土場）">第3圃場（岡堀土場）</option>
+                            <option value="第4圃場（南郷）">第4圃場（南郷）</option>
+                            <option value="第5圃場（蛇沢）">第5圃場（蛇沢）</option>
+                            <option value="第6圃場（大タルミ）">第6圃場（大タルミ）</option>
+                        </select>
                     </div>
 
                     {/* 備考 */}
