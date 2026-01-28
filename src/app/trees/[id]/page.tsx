@@ -17,6 +17,7 @@ interface TreeDetail {
     notes: string | null
     photo_url: string | null
     location: string | null
+    management_number: string | null
     arrived_at: string
     created_at: string
     species: {
@@ -262,6 +263,15 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
                     </button>
                 </div>
 
+                {/* 管理番号（大きく表示） */}
+                {tree.management_number && (
+                    <div className="bg-green-50 border-2 border-green-300 rounded-xl p-6 text-center">
+                        <p className="text-sm text-green-600 font-bold mb-1">管理番号</p>
+                        <p className="text-4xl font-mono font-black text-green-800">{tree.management_number}</p>
+                        <p className="text-xs text-green-500 mt-2">※ この番号を木に手書きしてください</p>
+                    </div>
+                )}
+
                 {/* 基本情報 */}
                 <div className="bg-white rounded-xl shadow-lg p-6">
                     <h2 className="text-lg font-bold text-gray-800 mb-4">📋 基本情報</h2>
@@ -271,8 +281,8 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
                             <dd className="text-lg font-medium">{tree.species?.name}</dd>
                         </div>
                         <div>
-                            <dt className="text-sm text-gray-500">通し番号</dt>
-                            <dd className="text-lg font-mono">#{tree.tree_number}</dd>
+                            <dt className="text-sm text-gray-500">管理番号</dt>
+                            <dd className="text-lg font-mono">{tree.management_number || '-'}</dd>
                         </div>
                         <div>
                             <dt className="text-sm text-gray-500">樹高</dt>
@@ -352,6 +362,7 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
                 treeNumber={tree.tree_number}
                 speciesName={tree.species?.name}
                 price={tree.price}
+                managementNumber={tree.management_number}
                 url={`${typeof window !== 'undefined' ? window.location.origin : ''}/trees/${tree.id}`}
                 layout={printLayout}
             />

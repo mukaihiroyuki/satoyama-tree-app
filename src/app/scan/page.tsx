@@ -4,10 +4,39 @@ import { useEffect, useState } from 'react'
 import { Html5QrcodeScanner } from 'html5-qrcode'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
 
 export default function ScanPage() {
     const router = useRouter()
     const [scanResult, setScanResult] = useState<string | null>(null)
+    const [showNumberSearch, setShowNumberSearch] = useState(false)
+    const [managementNumber, setManagementNumber] = useState('')
+    const [searching, setSearching] = useState(false)
+    const [searchError, setSearchError] = useState<string | null>(null)
+
+    // 管理番号で検索
+    async function handleNumberSearch(e: React.FormEvent) {
+        e.preventDefault()
+        if (!managementNumber.trim()) return
+
+        setSearching(true)
+        setSearchError(null)
+
+        const supabase = createClient()
+        const { data, error } = await supabase
+            .from('trees')
+            .select('id')
+            .eq('management_number', managementNumber.trim().toUpperCase())
+            .single()
+
+        if (error || !data) {
+            setSearchError('該当する樹木が見つかりません')
+            setSearching(false)
+            return
+        }
+
+        router.push(`/trees/${data.id}`)
+    }
 
     useEffect(() => {
         const scanner = new Html5QrcodeScanner(
@@ -78,6 +107,38 @@ export default function ScanPage() {
                             <p className="font-mono text-xs break-all">{scanResult}</p>
                         </div>
                     )}
+
+                    {/* 管理番号検索 */}
+                    <div className="pt-6 border-t border-zinc-700">
+                        <button
+                            onClick={() => setShowNumberSearch(!showNumberSearch)}
+                            className="text-green-400 font-bold"
+                        >
+                            {showNumberSearch ? '▲ 閉じる' : '▼ 番号で検索'}
+                        </button>
+
+                        {showNumberSearch && (
+                            <form onSubmit={handleNumberSearch} className="mt-4 space-y-3">
+                                <input
+                                    type="text"
+                                    value={managementNumber}
+                                    onChange={(e) => setManagementNumber(e.target.value)}
+                                    placeholder="例: 26-AO-0001"
+                                    className="w-full px-4 py-3 rounded-lg text-black text-lg font-mono text-center"
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={searching}
+                                    className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-500 py-3 rounded-lg font-bold text-lg"
+                                >
+                                    {searching ? '検索中...' : '🔍 検索'}
+                                </button>
+                                {searchError && (
+                                    <p className="text-red-400 font-bold">{searchError}</p>
+                                )}
+                            </form>
+                        )}
+                    </div>
                 </div>
             </main>
 

@@ -10,6 +10,7 @@ interface PrintLabelProps {
     speciesName: string
     url: string
     price?: number
+    managementNumber?: string | null
     layout?: LabelLayout
 }
 
@@ -19,6 +20,7 @@ export default function PrintLabel({
     speciesName,
     url,
     price,
+    managementNumber,
     layout = 'RJ-100'
 }: PrintLabelProps) {
     if (layout === 'PT-36' || layout === 'PT-24') {
@@ -49,7 +51,7 @@ export default function PrintLabel({
 
                 {/* 左側：樹種名と番号 */}
                 <div className="flex flex-col justify-center h-full pl-4 border-l-8 border-green-800">
-                    <div className="text-[10px] font-bold opacity-70">#{treeNumber}</div>
+                    {managementNumber && <div className={`${layout === 'PT-36' ? 'text-lg' : 'text-sm'} font-mono font-black`}>{managementNumber}</div>}
                     <div className={`${layout === 'PT-36' ? 'text-xl' : 'text-sm'} font-black leading-tight`}>{speciesName}</div>
                     {price && <div className={`${layout === 'PT-36' ? 'text-lg' : 'text-xs'} font-bold`}>¥{price.toLocaleString()}</div>}
                 </div>
@@ -78,8 +80,9 @@ export default function PrintLabel({
 
                 {/* 樹種名と番号 */}
                 <div className="text-center space-y-4 my-8">
-                    <div className="text-4xl font-black">#{treeNumber}</div>
+                    {managementNumber && <div className="text-3xl font-mono font-black">{managementNumber}</div>}
                     <div className="text-5xl font-bold">{speciesName}</div>
+                    {price && <div className="text-2xl font-bold">¥{price.toLocaleString()}</div>}
                 </div>
 
                 {/* QRコード */}

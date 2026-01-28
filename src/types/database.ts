@@ -7,6 +7,7 @@ export interface SpeciesMaster {
     id: string
     name: string
     name_kana: string | null
+    code: string | null  // 樹種コード（AO, MO, KY等）
     created_at: string
 }
 
@@ -21,6 +22,7 @@ export interface Tree {
     notes: string | null
     photo_url: string | null
     location: string | null
+    management_number: string | null  // 管理番号（25-AO-0001形式）
     arrived_at: string
     created_at: string
     updated_at: string
@@ -59,6 +61,7 @@ export interface TreeInsert {
     notes?: string
     photo_url?: string
     location?: string
+    management_number?: string  // 管理番号（25-AO-0001形式）
     arrived_at?: string
 }
 
