@@ -32,7 +32,7 @@ export function buildSmoothPrintUrl(
     copies: number = 1
 ): string {
     // QRデータを埋め込んだテンプレートを動的生成（パスベースでクエリパラメータなし）
-    const templateUrl = `${baseUrl}/api/label/${data.treeId}`
+    const templateUrl = `${baseUrl}/api/label/${data.treeId}.lbx`
 
     const parts: string[] = [
         `filename=${encodeURIComponent(templateUrl)}`,

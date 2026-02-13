@@ -13,10 +13,12 @@ export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const { id } = await params
+    const { id: rawId } = await params
+    // .lbx 拡張子を除去してツリーIDを取得
+    const treeId = rawId.replace(/\.lbx$/, '')
     // リクエストURLからベースURLを組み立て
     const baseUrl = `${request.nextUrl.protocol}//${request.nextUrl.host}`
-    const qrUrl = `${baseUrl}/trees/${id}`
+    const qrUrl = `${baseUrl}/trees/${treeId}`
 
     try {
         const templatePath = join(process.cwd(), 'public', 'print-templates', 'satoyama_label.lbx')
