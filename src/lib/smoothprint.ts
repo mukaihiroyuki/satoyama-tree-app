@@ -7,6 +7,9 @@
  * 対象プリンター: Brother RJ-4250WB
  * ラベルサイズ: 102mm × 50mm
  *
+ * QRコードは barcode_ パラメータが非対応のため、
+ * /api/label で .lbx に直接埋め込んで返す方式を採用。
+ *
  * @see https://support.brother.co.jp/j/s/support/html/smoothprint/
  */
 
@@ -17,27 +20,22 @@ export interface TreeLabelData {
     qrUrl: string
 }
 
-const TEMPLATE_FILE = 'satoyama_label.lbx'
-const MEDIA_FILE = 'rj4250_102x50.bin'
-const TEMPLATE_DIR = '/print-templates'
-
 /**
  * Smooth Print URL scheme を組み立てる
  *
- * Brother の仕様: パラメータ値は UTF-8 でエンコードし、
- * コロンやスラッシュを含めて URL エンコードする必要がある
- * ※ URLSearchParams は : / をエンコードしないため encodeURIComponent を使用
+ * テキストデータ: text_ パラメータで動的に渡す（Smooth Print対応）
+ * QRコード: /api/label?qr=URL でテンプレートに埋め込み済み .lbx を生成
  */
 export function buildSmoothPrintUrl(
     data: TreeLabelData,
     baseUrl: string,
     copies: number = 1
 ): string {
-    const templateUrl = `${baseUrl}${TEMPLATE_DIR}/${TEMPLATE_FILE}`
+    // QRデータを埋め込んだテンプレートを動的生成するAPIのURL
+    const templateUrl = `${baseUrl}/api/label?qr=${encodeURIComponent(data.qrUrl)}`
 
     const parts: string[] = [
         `filename=${encodeURIComponent(templateUrl)}`,
-        // 用紙情報をインラインパラメータで指定（.binファイル不要）
         `paperType=roll`,
         `tapeWidth=102`,
         `tapeLength=50`,
@@ -50,9 +48,6 @@ export function buildSmoothPrintUrl(
     if (data.managementNumber) {
         parts.push(`text_MGMT_NUM=${encodeURIComponent(data.managementNumber)}`)
     }
-
-    // テスト: 単純文字列でbarcode置換が動くか確認
-    parts.push(`barcode_QR=TEST123`)
 
     return `brotherwebprint://print?${parts.join('&')}`
 }

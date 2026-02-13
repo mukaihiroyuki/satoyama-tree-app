@@ -12,6 +12,7 @@
     "@ducanh2912/next-pwa": "^10.2.9",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.90.1",
+    "adm-zip": "^0.5.16",
     "html5-qrcode": "^2.3.8",
     "next": "^15.5.9",
     "qrcode.react": "^4.2.0",
@@ -20,6 +21,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/adm-zip": "^0.5.7",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
