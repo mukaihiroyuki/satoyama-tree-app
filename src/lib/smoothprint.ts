@@ -51,7 +51,8 @@ export function buildSmoothPrintUrl(
         parts.push(`text_MGMT_NUM=${encodeURIComponent(data.managementNumber)}`)
     }
 
-    parts.push(`barcode_QR=${encodeURIComponent(data.qrUrl)}`)
+    // テスト: 単純文字列でbarcode置換が動くか確認
+    parts.push(`barcode_QR=TEST123`)
 
     return `brotherwebprint://print?${parts.join('&')}`
 }
