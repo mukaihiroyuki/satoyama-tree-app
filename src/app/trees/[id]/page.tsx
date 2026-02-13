@@ -71,7 +71,7 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
             species: tree.species?.name || '',
             price: tree.price,
             managementNumber: tree.management_number,
-            qrUrl: `${window.location.origin}/trees/${tree.id}`,
+            treeId: tree.id,
         }
         const baseUrl = window.location.origin
         const url = buildSmoothPrintUrl(labelData, baseUrl)

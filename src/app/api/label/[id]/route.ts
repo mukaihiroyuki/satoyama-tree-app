@@ -4,21 +4,21 @@ import { join } from 'path'
 import AdmZip from 'adm-zip'
 
 /**
- * QRコードデータを埋め込んだ .lbx テンプレートを動的に生成する
+ * QRコードデータを埋め込んだ .lbx テンプレートを動的に生成
  *
- * Smooth Print の barcode_ パラメータが QR コードに非対応のため、
- * テンプレート内の QR データを直接書き換えて返す。
- *
- * GET /api/label?qr=https://example.com/trees/uuid
+ * GET /api/label/[treeId]
+ * → QR URL を baseUrl/trees/[treeId] として .lbx に埋め込み
  */
-export async function GET(request: NextRequest) {
-    const qrData = request.nextUrl.searchParams.get('qr')
-    if (!qrData) {
-        return NextResponse.json({ error: 'qr parameter required' }, { status: 400 })
-    }
+export async function GET(
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    const { id } = await params
+    // リクエストURLからベースURLを組み立て
+    const baseUrl = `${request.nextUrl.protocol}//${request.nextUrl.host}`
+    const qrUrl = `${baseUrl}/trees/${id}`
 
     try {
-        // ベーステンプレートを読み込み
         const templatePath = join(process.cwd(), 'public', 'print-templates', 'satoyama_label.lbx')
         const templateBuffer = await readFile(templatePath)
 
@@ -28,16 +28,14 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Invalid template' }, { status: 500 })
         }
 
-        // QRコードのデータを置換
         let labelXml = labelEntry.getData().toString('utf8')
         // バーコードオブジェクト内の <pt:data>...</pt:data> を置換
         labelXml = labelXml.replace(
             /(<barcode:barcode>[\s\S]*?<pt:data>)([\s\S]*?)(<\/pt:data>)/,
-            `$1${escapeXml(qrData)}$3`
+            `$1${escapeXml(qrUrl)}$3`
         )
 
         zip.updateFile('label.xml', Buffer.from(labelXml, 'utf8'))
-
         const outputBuffer = zip.toBuffer()
 
         return new NextResponse(new Uint8Array(outputBuffer), {
