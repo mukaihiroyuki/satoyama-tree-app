@@ -26,35 +26,29 @@ const TEMPLATE_DIR = '/print-templates'
  *
  * Brother の仕様: パラメータ値は UTF-8 でエンコードし、
  * コロンやスラッシュを含めて URL エンコードする必要がある
+ * ※ URLSearchParams は : / をエンコードしないため encodeURIComponent を使用
  */
 export function buildSmoothPrintUrl(
     data: TreeLabelData,
     baseUrl: string,
     copies: number = 1
 ): string {
-    // テンプレートと用紙設定のURL（コロン・スラッシュ含めてエンコード）
     const templateUrl = `${baseUrl}${TEMPLATE_DIR}/${TEMPLATE_FILE}`
     const mediaUrl = `${baseUrl}${TEMPLATE_DIR}/${MEDIA_FILE}`
 
-    const params = new URLSearchParams()
-
-    // テンプレートファイル（HTTP URL をエンコード）
-    params.set('filename', templateUrl)
-    // 用紙情報ファイル（RJシリーズは .bin ファイル指定）
-    params.set('size', mediaUrl)
-    // 印刷部数
-    params.set('copies', String(copies))
-
-    // 動的テキストデータ（P-touch Editor のオブジェクト名と対応）
-    params.set('text_SPECIES', data.species)
-    params.set('text_PRICE', `¥${data.price.toLocaleString()}`)
+    const parts: string[] = [
+        `filename=${encodeURIComponent(templateUrl)}`,
+        `size=${encodeURIComponent(mediaUrl)}`,
+        `copies=${copies}`,
+        `text_SPECIES=${encodeURIComponent(data.species)}`,
+        `text_PRICE=${encodeURIComponent(`¥${data.price.toLocaleString()}`)}`,
+    ]
 
     if (data.managementNumber) {
-        params.set('text_MGMT_NUM', data.managementNumber)
+        parts.push(`text_MGMT_NUM=${encodeURIComponent(data.managementNumber)}`)
     }
 
-    // QRコード（バーコードオブジェクト）
-    params.set('barcode_QRCODE', data.qrUrl)
+    parts.push(`barcode_QRCODE=${encodeURIComponent(data.qrUrl)}`)
 
-    return `brotherwebprint://print?${params.toString()}`
+    return `brotherwebprint://print?${parts.join('&')}`
 }
