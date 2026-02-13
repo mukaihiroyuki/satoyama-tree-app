@@ -76,8 +76,7 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
         const baseUrl = window.location.origin
         const url = buildSmoothPrintUrl(labelData, baseUrl)
 
-        console.log('Smooth Print URL:', url)
-        if (confirm(`Smooth Print が開きます。\n\n[DEBUG] ${url.substring(0, 200)}...`)) {
+        if (confirm('Smooth Print が開きます。印刷後はホーム画面からアプリに戻ってください。')) {
             window.location.href = url
         }
     }
