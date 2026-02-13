@@ -51,7 +51,7 @@ export function buildSmoothPrintUrl(
         parts.push(`text_MGMT_NUM=${encodeURIComponent(data.managementNumber)}`)
     }
 
-    parts.push(`barcode_QRCODE=${encodeURIComponent(data.qrUrl)}`)
+    parts.push(`barcode_QR=${encodeURIComponent(data.qrUrl)}`)
 
     return `brotherwebprint://print?${parts.join('&')}`
 }
