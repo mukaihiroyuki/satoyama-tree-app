@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import PrintLabel from '@/components/PrintLabel'
+import { buildSmoothPrintUrl, type TreeLabelData } from '@/lib/smoothprint'
 
 interface TreeDetail {
     id: string
@@ -42,7 +43,43 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
     const [uploading, setUploading] = useState(false)
     const [refreshSignal, setRefreshSignal] = useState(0)
     const [printLayout, setPrintLayout] = useState<'RJ-100' | 'PT-36' | 'PT-24'>('PT-36') // デフォルトを新購入の36mmに
+    const [printMode, setPrintMode] = useState<'airprint' | 'bluetooth'>(() => {
+        if (typeof window !== 'undefined') {
+            return (localStorage.getItem('printMode') as 'airprint' | 'bluetooth') || 'airprint'
+        }
+        return 'airprint'
+    })
     const refreshData = () => setRefreshSignal(prev => prev + 1)
+
+    // 印刷モード切替時に localStorage に保存
+    function handlePrintModeChange(mode: 'airprint' | 'bluetooth') {
+        setPrintMode(mode)
+        localStorage.setItem('printMode', mode)
+    }
+
+    // 印刷実行
+    function handlePrint() {
+        if (!tree) return
+
+        if (printMode === 'airprint') {
+            window.print()
+            return
+        }
+
+        // Bluetooth (Smooth Print) 印刷
+        const labelData: TreeLabelData = {
+            species: tree.species?.name || '',
+            price: tree.price,
+            managementNumber: tree.management_number,
+            qrUrl: `${window.location.origin}/trees/${tree.id}`,
+        }
+        const baseUrl = window.location.origin
+        const url = buildSmoothPrintUrl(labelData, baseUrl)
+
+        if (confirm('Smooth Print が開きます。印刷後はホーム画面からアプリに戻ってください。')) {
+            window.location.href = url
+        }
+    }
 
     useEffect(() => {
         const fetchTree = async () => {
@@ -206,20 +243,34 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
                             </h1>
                         </div>
                         <div className="flex items-center gap-2">
+                            {printMode === 'airprint' && (
+                                <select
+                                    value={printLayout}
+                                    onChange={(e) => setPrintLayout(e.target.value as 'RJ-100' | 'PT-36' | 'PT-24')}
+                                    className="text-sm border-green-300 rounded-md py-2 px-1 text-green-700 font-bold bg-green-50"
+                                >
+                                    <option value="PT-36">PT-36 (36mm)</option>
+                                    <option value="PT-24">PT-24 (24mm)</option>
+                                    <option value="RJ-100">RJ-100 (100mm)</option>
+                                </select>
+                            )}
                             <select
-                                value={printLayout}
-                                onChange={(e) => setPrintLayout(e.target.value as 'RJ-100' | 'PT-36' | 'PT-24')}
-                                className="text-sm border-green-300 rounded-md py-2 px-1 text-green-700 font-bold bg-green-50"
+                                value={printMode}
+                                onChange={(e) => handlePrintModeChange(e.target.value as 'airprint' | 'bluetooth')}
+                                className="text-sm border-blue-300 rounded-md py-2 px-1 text-blue-700 font-bold bg-blue-50"
                             >
-                                <option value="PT-36">PT-36 (36mm)</option>
-                                <option value="PT-24">PT-24 (24mm)</option>
-                                <option value="RJ-100">RJ-100 (100mm)</option>
+                                <option value="airprint">AirPrint</option>
+                                <option value="bluetooth">Bluetooth</option>
                             </select>
                             <button
-                                onClick={() => window.print()}
-                                className="bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-sm"
+                                onClick={handlePrint}
+                                className={`text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-sm ${
+                                    printMode === 'bluetooth'
+                                        ? 'bg-blue-600 hover:bg-blue-700'
+                                        : 'bg-green-600 hover:bg-green-700'
+                                }`}
                             >
-                                🖨️ 印刷
+                                {printMode === 'bluetooth' ? '📱 Bluetooth印刷' : '🖨️ 印刷'}
                             </button>
                         </div>
                     </div>
