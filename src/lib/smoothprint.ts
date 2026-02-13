@@ -34,11 +34,14 @@ export function buildSmoothPrintUrl(
     copies: number = 1
 ): string {
     const templateUrl = `${baseUrl}${TEMPLATE_DIR}/${TEMPLATE_FILE}`
-    const mediaUrl = `${baseUrl}${TEMPLATE_DIR}/${MEDIA_FILE}`
 
     const parts: string[] = [
         `filename=${encodeURIComponent(templateUrl)}`,
-        `size=${encodeURIComponent(mediaUrl)}`,
+        // 用紙情報をインラインパラメータで指定（.binファイル不要）
+        `paperType=roll`,
+        `tapeWidth=102`,
+        `tapeLength=50`,
+        `unit=mm`,
         `copies=${copies}`,
         `text_SPECIES=${encodeURIComponent(data.species)}`,
         `text_PRICE=${encodeURIComponent(`¥${data.price.toLocaleString()}`)}`,
