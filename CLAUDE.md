@@ -1,8 +1,11 @@
 # CLAUDE.md - 里山プロジェクト固有ルール
 
-> **プロジェクト**: 里山樹木管理システム（Satoyama Tree Management System）  
-> **技術スタック**: Next.js 15, TypeScript, Supabase, Google Apps Script  
+> **プロジェクト**: 里山樹木管理システム（Satoyama Tree Management System）
+> **技術スタック**: Next.js 15, TypeScript, Supabase, Google Apps Script
 > **全プロジェクト共通の開発哲学**: [CLAUDE.md（マスター版）](file:///g:/マイドライブ/my_Obsidian/HiroyukiObsidian_vault/20_Areas/21_AI_Tools/CLAUDE.md)
+
+> [!IMPORTANT]
+> **セッション開始時に `HOME_SYNC.md` を必ず読むこと。** 現在の進捗・次回タスク・申し送りが書いてある。
 
 ---
 
