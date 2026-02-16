@@ -182,7 +182,7 @@ export default function ScanPage() {
                                     value={managementNumber}
                                     onChange={(e) => setManagementNumber(e.target.value)}
                                     placeholder="例: 26-AO-0001 または 1"
-                                    className="w-full px-4 py-3 rounded-lg text-black text-lg font-mono text-center"
+                                    className="w-full px-4 py-3 rounded-lg bg-white text-black text-lg font-mono text-center border-2 border-green-400"
                                     onKeyDown={(e) => { if (e.key === 'Enter') handleSearch() }}
                                 />
                                 <button
