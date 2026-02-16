@@ -1,146 +1,112 @@
-# CLAUDE.md - 里山プロジェクト固有ルール
+# CLAUDE.md
 
-> **プロジェクト**: 里山樹木管理システム（Satoyama Tree Management System）
-> **技術スタック**: Next.js 15, TypeScript, Supabase, Google Apps Script
-> **全プロジェクト共通の開発哲学**: [CLAUDE.md（マスター版）](file:///g:/マイドライブ/my_Obsidian/HiroyukiObsidian_vault/20_Areas/21_AI_Tools/CLAUDE.md)
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> [!IMPORTANT]
 > **セッション開始時に `HOME_SYNC.md` を必ず読むこと。** 現在の進捗・次回タスク・申し送りが書いてある。
 
----
+## プロジェクト概要
 
-## 🌲 プロジェクト概要
+里山の樹木在庫を管理するNext.js PWA。圃場（ストックヤード）での樹木登録・QRラベル発行・スマホスキャン・出荷管理をモバイルファーストで提供する。Vercelにデプロイ済み。
 
-里山の樹木を管理するWebアプリケーション。顧客情報、樹木データ、作業履歴を一元管理し、現場作業員が効率的に作業できるようにする。
+核心理念: 「現場の孤独をなくし、情報の架け橋を作る」— 現場でのスマホ操作がそのまま台帳になり、事務所のExcel/スプシへ流れる。
 
----
+## コマンド
 
-## 📋 コード規約
-
-### TypeScript
-- **厳格な型定義**: `any` の使用は禁止。必ず適切な型を定義する
-- **非同期処理**: `async/await` を使用。`.then()` チェーンは避ける
-- **エラーハンドリング**: 全ての非同期処理に `try-catch` を実装
-
-### React/Next.js
-- **Server Components優先**: クライアントコンポーネントは必要最小限に
-- **Hooks**: カスタムフックは `use` プレフィックスを付ける
-- **命名規則**: コンポーネントはPascalCase、関数はcamelCase
-
-### Supabase
-- **RLS（Row Level Security）**: 全てのテーブルでRLSを有効化
-- **型安全性**: Supabaseの型定義を必ず使用
-- **リアルタイム**: 必要な場合のみRealtime機能を使用（パフォーマンス考慮）
-
----
-
-## 🏗️ アーキテクチャ
-
-### ディレクトリ構造
+```bash
+npm run dev      # 開発サーバー起動 (localhost:3000)
+npm run build    # 本番ビルド
+npm run start    # 本番サーバー起動
+npm run lint     # ESLint実行 (eslint)
 ```
-satoyama-tree-app/
-├── app/              # Next.js App Router
-├── components/       # Reactコンポーネント
-├── lib/              # ユーティリティ、Supabaseクライアント
-├── types/            # TypeScript型定義
-└── public/           # 静的ファイル
+
+自動テストは未導入。ブラウザ・モバイル実機での手動テスト。
+
+## 技術スタック
+
+- **Next.js 15** (App Router) + **React 18** + **TypeScript 5** (strict mode)
+- **Supabase** (PostgreSQL + Auth + Storage) — Email OTP認証、全テーブルRLS有効
+- **Tailwind CSS 4** + PostCSS
+- **PWA**: `@ducanh2912/next-pwa` (開発時は無効化)
+- **QR**: `html5-qrcode`(読取）、`qrcode.react`（生成）
+- **印刷**: AirPrint + Brother Smooth Print URL scheme (Bluetooth)
+- **ラベル**: `adm-zip` で .lbx テンプレートのZIP操作
+
+## アーキテクチャ
+
 ```
+src/
+├── app/                    # Next.js App Router (pages & API routes)
+│   ├── api/label/[id]/     # .lbx動的生成API (QRコード埋め込み)
+│   ├── auth/               # ログイン (Email OTP) & OAuth callback
+│   ├── trees/              # 一覧 / 新規登録 / 詳細[id]
+│   ├── scan/               # QRスキャナー + 管理番号検索
+│   ├── shipments/          # 出荷履歴
+│   ├── clients/            # 顧客マスタ
+│   └── page.tsx            # ダッシュボード (在庫統計)
+├── components/             # PrintLabel, ShipmentDialog
+├── lib/
+│   ├── smoothprint.ts      # Brother Smooth Print URL scheme ビルダー
+│   └── supabase/           # client.ts (ブラウザ用) / server.ts (SSR用)
+└── types/
+    └── database.ts         # 全DBエンティティの型定義
+```
+
+**パスエイリアス**: `@/*` → `./src/*`
 
 ### データフロー
-1. **Google Sheets（マスターデータ）** → GAS → CSV出力
-2. **Supabase（データベース）** ← CSV取り込み
-3. **Next.jsアプリ** ← Supabase経由でデータ取得
 
----
+- **Supabase** がデータの中心。ブラウザからは `@supabase/supabase-js`、サーバーからは `@supabase/ssr` で接続
+- **画像**: Supabase Storage (`tree-photos` バケット) に保存。アップロード時1200px幅に自動圧縮
+- **状態管理**: React `useState` + `useEffect` のみ（Redux/Context不使用）。データ更新は `refreshSignal` で再取得トリガー
+- **CSV出力**: BOM付きUTF-8でExcel互換
 
-## ⚠️ 過去の失敗・注意事項
+### DBテーブル
 
-### 1. Google Driveとの同期問題
-- **問題**: Google Driveで開発すると、大量のファイル（`node_modules`など）が同期され、PCがフリーズする
-- **解決策**: 開発プロジェクトは必ず`C:\Dev\`に配置。Google Driveは同期しない
+| テーブル | 概要 |
+|---------|------|
+| `trees` | 樹木在庫 (management_number: `YY-CODE-NNNN` 形式) |
+| `species_master` | 樹種マスタ (code: 'AO', 'MO' 等) |
+| `clients` | 顧客マスタ |
+| `shipments` | 出荷ヘッダ |
+| `shipment_items` | 出荷明細 (unit_price スナップショット) |
 
-### 2. Supabaseの型定義
-- **問題**: Supabaseの型定義が古くなり、エラーが発生
-- **解決策**: `npx supabase gen types typescript` で定期的に型定義を更新
+マイグレーション: `supabase/migrations/` に格納。
 
-### 3. プリンター機能（AirPrint）
-- **問題**: 事務員のPCでプリンターが起動しない
-- **原因**: ブラウザの権限設定、ネットワーク接続の問題
-- **解決策**: ブラウザの設定確認、ネットワーク診断
+### 印刷の2モード
 
-### 4. Brother Smooth Print URL scheme（Bluetooth印刷）の罠
-以下は2026-02-13に7つのバグを踏んで学んだ教訓。**絶対に守ること**：
+1. **AirPrint**: ブラウザ標準 `window.print()` — PrintLabelコンポーネントで `@media print` スタイル適用
+2. **Bluetooth (Brother Smooth Print)**: URL scheme `brotherwebprint://print?...` で直接印刷 — `smoothprint.ts` がURLビルド
 
-- **URLSearchParamsを使うな**: `:` `/` をエンコードしない。`encodeURIComponent()` を使え
-- **barcode_ パラメータはQRコードに効かない**: テキスト(text_)は動くがバーコード/QRは非対応。QRデータは `/api/label/[id].lbx` でテンプレートに直接埋め込む方式を使う
-- **filename URLは .lbx 拡張子必須**: Smooth Print がURL末尾の拡張子を検証する
-- **filename URLにクエリパラメータ禁止**: `?key=value` は二重エンコードで壊れる。パスベースで渡す
-- **.bin ファイルよりインラインパラメータ**: `paperType=roll&tapeWidth=102&tapeLength=50&unit=mm` の方が確実
-- **P-touch Editorのオブジェクト名を必ず確認**: .lbxはZIP形式、中のlabel.xmlでobjectNameを確認可能
-- **PowerShell Compress-Archiveで.lbxを再ZIPするな**: ZIP形式が変わってSmooth Printが読めなくなる。adm-zipを使う
+印刷モード切替は `localStorage` に保存。
 
----
+## Brother Smooth Print URL scheme の罠（必読）
 
-## 🔧 開発ワークフロー
+2026-02-13に7つのバグを踏んで得た教訓。**絶対に守ること**：
 
-### 1. 新機能開発
-1. **PLANNING**: `implementation_plan.md` で設計
-2. **EXECUTION**: Plan Modeで一撃実装
-3. **VERIFICATION**: ブラウザテスト、`walkthrough.md` 作成
+1. **URLSearchParamsを使うな**: `:` `/` をエンコードしない。`encodeURIComponent()` を使え
+2. **barcode_ パラメータはQRコードに効かない**: テキスト(`text_`)は動くがバーコード/QRは非対応。QRデータは `/api/label/[id].lbx` でテンプレートに直接埋め込む
+3. **filename URLは .lbx 拡張子必須**: Smooth Printが末尾の拡張子を検証する
+4. **filename URLにクエリパラメータ禁止**: `?key=value` は二重エンコードで壊れる。パスベースで渡す
+5. **.bin よりインラインパラメータ**: `paperType=roll&tapeWidth=102&tapeLength=50&unit=mm` の方が確実
+6. **P-touch Editorのオブジェクト名を必ず確認**: .lbxはZIP形式、中のlabel.xmlでobjectNameを確認可能
+7. **PowerShell Compress-Archiveで.lbxを再ZIPするな**: ZIP形式が変わってSmooth Printが読めなくなる。`adm-zip`を使う
 
-### 2. バグ修正
-1. 原因調査（ログ解析、Supabaseデータ確認）
-2. 修正実装
-3. 検証（同じ条件で再現テスト）
+## コード規約
 
-### 3. リファクタリング
-1. `code-simplifier` サブエージェントを活用
-2. 既存機能の動作確認
-3. テストで品質保証
+- **`any` 禁止** — 必ず適切な型を定義
+- **Server Components優先** — `"use client"` は必要最小限
+- **`async/await`** — `.then()` チェーンは避ける
+- **Supabase RLS** — 全テーブルで有効化必須
 
----
+## 環境変数
 
-## 📦 依存関係
+```
+NEXT_PUBLIC_SUPABASE_URL     # Supabase プロジェクトURL
+NEXT_PUBLIC_SUPABASE_ANON_KEY # Supabase anon key
+```
 
-### 主要ライブラリ
-- **Next.js**: 15.x（最新安定版）
-- **React**: 18.x
-- **Supabase**: 最新版
-- **TypeScript**: 5.x
+## 開発時の注意
 
-### 注意事項
-- **古いライブラリは使わない**: 必ず最新の安定版を使用
-- **セキュリティアップデート**: 定期的に `npm audit` を実行
-
----
-
-## 🧪 テスト戦略
-
-### 自動テスト
-- **単体テスト**: Jest + React Testing Library
-- **E2Eテスト**: Playwright（`verify-app` サブエージェント活用）
-
-### 手動テスト
-- **ブラウザテスト**: Chrome, Edge, Safari
-- **モバイルテスト**: iOS Safari, Android Chrome
-- **プリンターテスト**: 実機で印刷確認
-
----
-
-## 🚀 デプロイ
-
-### 環境
-- **開発**: `localhost:3000`
-- **本番**: Vercel
-
-### デプロイ前チェックリスト
-- [ ] `npm run build` が成功する
-- [ ] Supabase接続確認
-- [ ] 環境変数設定確認
-- [ ] プリンター機能テスト
-
----
-
-## 📝 更新履歴
-
-- 2026-01-29: 初版作成
+- 開発プロジェクトは `C:\Dev\` に配置。Google Driveで開発するとnode_modules同期でPCがフリーズする
+- Supabase型定義が古くなったら `npx supabase gen types typescript` で再生成
+- PWAサービスワーカーは開発時無効（`next.config.ts` で `disable: process.env.NODE_ENV === "development"`）

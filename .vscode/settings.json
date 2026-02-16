@@ -35,5 +35,15 @@
   "editor.minimap.enabled": false,
   "git.autorefresh": false,
   "typescript.updateImportsOnFileMove.enabled": "never",
-  "javascript.updateImportsOnFileMove.enabled": "never"
+  "javascript.updateImportsOnFileMove.enabled": "never",
+  "terminal.integrated.profiles.windows": {
+    "Ubuntu": {
+      "path": "C:\\WINDOWS\\System32\\wsl.exe",
+      "args": [
+        "-d",
+        "Ubuntu"
+      ]
+    }
+  },
+  "terminal.integrated.defaultProfile.windows": "Ubuntu"
 }
