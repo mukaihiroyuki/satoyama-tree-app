@@ -5,6 +5,7 @@ import { Html5QrcodeScanner } from 'html5-qrcode'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { db } from '@/lib/db'
 
 export default function ScanPage() {
     const router = useRouter()
@@ -14,28 +15,85 @@ export default function ScanPage() {
     const [searching, setSearching] = useState(false)
     const [searchError, setSearchError] = useState<string | null>(null)
 
-    // 管理番号で検索
+    // 管理番号で検索（オンライン→Supabase、オフライン→IndexedDBキャッシュ）
     async function handleNumberSearch(e: React.FormEvent) {
         e.preventDefault()
-        if (!managementNumber.trim()) return
+        const query = managementNumber.trim().toUpperCase()
+        if (!query) return
 
         setSearching(true)
         setSearchError(null)
 
-        const supabase = createClient()
-        const { data, error } = await supabase
-            .from('trees')
-            .select('id')
-            .eq('management_number', managementNumber.trim().toUpperCase())
-            .single()
+        // まずオンラインでSupabase検索を試みる
+        if (navigator.onLine) {
+            try {
+                const supabase = createClient()
 
-        if (error || !data) {
-            setSearchError('該当する樹木が見つかりません')
-            setSearching(false)
-            return
+                // 完全一致
+                let { data } = await supabase
+                    .from('trees')
+                    .select('id')
+                    .eq('management_number', query)
+                    .maybeSingle()
+
+                // 部分一致（末尾の番号部分のゼロ埋めなしでも検索可能に）
+                if (!data) {
+                    const { data: partialData } = await supabase
+                        .from('trees')
+                        .select('id')
+                        .ilike('management_number', `%${query}%`)
+                        .limit(1)
+                        .maybeSingle()
+                    data = partialData
+                }
+
+                // 数字のみ入力の場合はtree_numberでも検索
+                if (!data && /^\d+$/.test(query)) {
+                    const { data: numData } = await supabase
+                        .from('trees')
+                        .select('id')
+                        .eq('tree_number', parseInt(query, 10))
+                        .maybeSingle()
+                    data = numData
+                }
+
+                if (data) {
+                    router.push(`/trees/${data.id}`)
+                    return
+                }
+            } catch {
+                // ネットワークエラー → オフライン検索にフォールバック
+            }
         }
 
-        router.push(`/trees/${data.id}`)
+        // オフライン or オンライン検索で見つからなかった場合 → IndexedDBキャッシュを検索
+        const cached = await db.trees.toArray()
+        if (cached.length > 0) {
+            // 完全一致
+            let found = cached.find(t =>
+                t.management_number?.toUpperCase() === query
+            )
+
+            // 部分一致
+            if (!found) {
+                found = cached.find(t =>
+                    t.management_number?.toUpperCase().includes(query)
+                )
+            }
+
+            // 数字のみならtree_numberでも
+            if (!found && /^\d+$/.test(query)) {
+                found = cached.find(t => t.tree_number === parseInt(query, 10))
+            }
+
+            if (found) {
+                router.push(`/trees/${found.id}`)
+                return
+            }
+        }
+
+        setSearchError(`「${managementNumber.trim()}」に該当する樹木が見つかりません`)
+        setSearching(false)
     }
 
     useEffect(() => {
@@ -123,7 +181,7 @@ export default function ScanPage() {
                                     type="text"
                                     value={managementNumber}
                                     onChange={(e) => setManagementNumber(e.target.value)}
-                                    placeholder="例: 26-AO-0001"
+                                    placeholder="例: 26-AO-0001 または 1"
                                     className="w-full px-4 py-3 rounded-lg text-black text-lg font-mono text-center"
                                 />
                                 <button
@@ -131,8 +189,11 @@ export default function ScanPage() {
                                     disabled={searching}
                                     className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-500 py-3 rounded-lg font-bold text-lg"
                                 >
-                                    {searching ? '検索中...' : '🔍 検索'}
+                                    {searching ? '検索中...' : '検索'}
                                 </button>
+                                <p className="text-zinc-500 text-xs">
+                                    管理番号（26-AO-0001）または通し番号（1）で検索
+                                </p>
                                 {searchError && (
                                     <p className="text-red-400 font-bold">{searchError}</p>
                                 )}
