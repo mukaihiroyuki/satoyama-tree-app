@@ -1,31 +1,14 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import PrintLabel from '@/components/PrintLabel'
+import TreeEditForm from '@/components/TreeEditForm'
 import { buildSmoothPrintUrl, type TreeLabelData } from '@/lib/smoothprint'
-
-interface TreeDetail {
-    id: string
-    tree_number: number
-    height: number
-    trunk_count: number
-    price: number
-    status: string
-    notes: string | null
-    photo_url: string | null
-    location: string | null
-    management_number: string | null
-    arrived_at: string
-    created_at: string
-    species: {
-        id: string
-        name: string
-    }
-}
+import { useTree } from '@/hooks/useTree'
 
 const statusLabels: Record<string, { label: string; color: string }> = {
     in_stock: { label: '在庫あり', color: 'bg-green-100 text-green-800 border-green-300' },
@@ -38,18 +21,15 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
     const { id } = React.use(params)
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement>(null)
-    const [tree, setTree] = useState<TreeDetail | null>(null)
-    const [loading, setLoading] = useState(true)
+    const { tree, loading, isOnline, saveEdit, saveMessage, refreshData } = useTree(id)
     const [uploading, setUploading] = useState(false)
-    const [refreshSignal, setRefreshSignal] = useState(0)
-    const [printLayout, setPrintLayout] = useState<'RJ-100' | 'PT-36' | 'PT-24'>('PT-36') // デフォルトを新購入の36mmに
+    const [printLayout, setPrintLayout] = useState<'RJ-100' | 'PT-36' | 'PT-24'>('PT-36')
     const [printMode, setPrintMode] = useState<'airprint' | 'bluetooth'>(() => {
         if (typeof window !== 'undefined') {
             return (localStorage.getItem('printMode') as 'airprint' | 'bluetooth') || 'airprint'
         }
         return 'airprint'
     })
-    const refreshData = () => setRefreshSignal(prev => prev + 1)
 
     // 印刷モード切替時に localStorage に保存
     function handlePrintModeChange(mode: 'airprint' | 'bluetooth') {
@@ -81,27 +61,7 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
         }
     }
 
-    useEffect(() => {
-        const fetchTree = async () => {
-            const supabase = createClient()
-            const { data, error } = await supabase
-                .from('trees')
-                .select(`*, species:species_master(id, name)`)
-                .eq('id', id)
-                .single()
-
-            if (error) {
-                console.error('Error:', error)
-                setLoading(false)
-                return
-            }
-            setTree(data)
-            setLoading(false)
-        }
-        fetchTree()
-    }, [id, refreshSignal])
-
-    // 写真アップロード
+    // 写真アップロード（オンライン専用）
     async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0]
         if (!file || !tree) return
@@ -170,28 +130,19 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
         setUploading(false)
     }
 
-    // 状態変更
+    // 状態変更（useTree.saveEditを経由）
     async function handleStatusChange(newStatus: string) {
         if (!tree) return
-
-        const supabase = createClient()
-        const { error } = await supabase
-            .from('trees')
-            .update({ status: newStatus })
-            .eq('id', tree.id)
-
-        if (error) {
-            console.error('Error:', error)
-            alert('更新に失敗しました')
-            return
-        }
-
-        refreshData()
+        await saveEdit({ status: newStatus })
     }
 
-    // 削除
+    // 削除（オンライン専用）
     async function handleDelete() {
         if (!tree) return
+        if (!isOnline) {
+            alert('削除はオンライン時のみ可能です')
+            return
+        }
         if (!confirm(`#${tree.tree_number} ${tree.species?.name} を削除しますか？`)) return
 
         const supabase = createClient()
@@ -278,9 +229,20 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
             </header>
 
             <main className="max-w-3xl mx-auto px-4 py-8 space-y-6 print:hidden">
+                {/* オフラインインジケーター */}
+                {!isOnline && (
+                    <div className="bg-yellow-50 border border-yellow-300 rounded-xl px-4 py-3 flex items-center gap-3">
+                        <span className="text-yellow-600 text-lg">⚡</span>
+                        <div>
+                            <p className="text-sm font-bold text-yellow-800">オフラインモード</p>
+                            <p className="text-xs text-yellow-600">キャッシュデータを表示中。編集はローカルに保存されます。</p>
+                        </div>
+                    </div>
+                )}
+
                 {/* 写真セクション */}
                 <div className="bg-white rounded-xl shadow-lg p-6">
-                    <h2 className="text-lg font-bold text-gray-800 mb-4">📷 写真</h2>
+                    <h2 className="text-lg font-bold text-gray-800 mb-4">写真</h2>
 
                     {tree.photo_url ? (
                         <div className="relative aspect-video rounded-lg overflow-hidden bg-gray-100">
@@ -307,10 +269,10 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
                     />
                     <button
                         onClick={() => fileInputRef.current?.click()}
-                        disabled={uploading}
+                        disabled={uploading || !isOnline}
                         className="mt-4 w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white py-3 rounded-lg font-semibold"
                     >
-                        {uploading ? 'アップロード中...' : tree.photo_url ? '📷 写真を変更' : '📷 写真を追加'}
+                        {!isOnline ? '写真変更はオンライン時のみ' : uploading ? 'アップロード中...' : tree.photo_url ? '写真を変更' : '写真を追加'}
                     </button>
                 </div>
 
@@ -323,46 +285,17 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
                     </div>
                 )}
 
-                {/* 基本情報 */}
-                <div className="bg-white rounded-xl shadow-lg p-6">
-                    <h2 className="text-lg font-bold text-gray-800 mb-4">📋 基本情報</h2>
-                    <dl className="grid grid-cols-2 gap-4">
-                        <div>
-                            <dt className="text-sm text-gray-500">樹種</dt>
-                            <dd className="text-lg font-medium">{tree.species?.name}</dd>
-                        </div>
-                        <div>
-                            <dt className="text-sm text-gray-500">管理番号</dt>
-                            <dd className="text-lg font-mono">{tree.management_number || '-'}</dd>
-                        </div>
-                        <div>
-                            <dt className="text-sm text-gray-500">樹高</dt>
-                            <dd className="text-lg font-medium">{tree.height}m</dd>
-                        </div>
-                        <div>
-                            <dt className="text-sm text-gray-500">本立ち</dt>
-                            <dd className="text-lg font-medium">{tree.trunk_count}本</dd>
-                        </div>
-                        <div>
-                            <dt className="text-sm text-gray-500">上代</dt>
-                            <dd className="text-xl font-bold text-green-700">¥{tree.price.toLocaleString()}</dd>
-                        </div>
-                        <div>
-                            <dt className="text-sm text-gray-500">場所</dt>
-                            <dd className="text-lg">{tree.location || '-'}</dd>
-                        </div>
-                    </dl>
-                    {tree.notes && (
-                        <div className="mt-4 pt-4 border-t">
-                            <dt className="text-sm text-gray-500">備考</dt>
-                            <dd className="mt-1 text-gray-700 whitespace-pre-wrap">{tree.notes}</dd>
-                        </div>
-                    )}
-                </div>
+                {/* 基本情報（編集フォーム） */}
+                <TreeEditForm
+                    tree={tree}
+                    isOnline={isOnline}
+                    saveMessage={saveMessage}
+                    onSave={saveEdit}
+                />
 
                 {/* 状態変更 */}
                 <div className="bg-white rounded-xl shadow-lg p-6">
-                    <h2 className="text-lg font-bold text-gray-800 mb-4">📦 状態</h2>
+                    <h2 className="text-lg font-bold text-gray-800 mb-4">状態</h2>
                     <div className="flex flex-wrap gap-2">
                         {Object.entries(statusLabels).map(([key, { label, color }]) => (
                             <button
@@ -381,7 +314,7 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
 
                 {/* システム情報 */}
                 <div className="bg-white rounded-xl shadow-lg p-6">
-                    <h2 className="text-lg font-bold text-gray-800 mb-4">🔧 システム情報</h2>
+                    <h2 className="text-lg font-bold text-gray-800 mb-4">システム情報</h2>
                     <dl className="grid grid-cols-1 gap-2 text-sm">
                         <div className="flex justify-between">
                             <dt className="text-gray-500">UUID</dt>
@@ -401,9 +334,10 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
                 {/* 削除ボタン */}
                 <button
                     onClick={handleDelete}
-                    className="w-full bg-red-50 hover:bg-red-100 text-red-600 py-3 rounded-lg font-semibold border border-red-200"
+                    disabled={!isOnline}
+                    className="w-full bg-red-50 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed text-red-600 py-3 rounded-lg font-semibold border border-red-200"
                 >
-                    🗑️ この樹木を削除
+                    {isOnline ? 'この樹木を削除' : '削除はオンライン時のみ'}
                 </button>
             </main>
 

@@ -1,29 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import ShipmentDialog from '@/components/ShipmentDialog'
-
-interface Species {
-    id: string
-    name: string
-}
-
-interface TreeWithSpecies {
-    id: string
-    tree_number: number
-    height: number
-    trunk_count: number
-    price: number
-    status: string
-    notes: string | null
-    location: string | null
-    arrived_at: string
-    species: {
-        name: string
-    }
-}
+import { useTrees } from '@/hooks/useTrees'
 
 const statusLabels: Record<string, { label: string; color: string }> = {
     in_stock: { label: '在庫あり', color: 'bg-green-100 text-green-800' },
@@ -33,10 +13,7 @@ const statusLabels: Record<string, { label: string; color: string }> = {
 }
 
 export default function TreesPage() {
-    const [trees, setTrees] = useState<TreeWithSpecies[]>([])
-    const [species, setSpecies] = useState<Species[]>([])
-    const [locations, setLocations] = useState<string[]>([])
-    const [loading, setLoading] = useState(true)
+    const { trees, species, locations, loading, isOnline, pendingCount, refreshData } = useTrees()
 
     // フィルター状態
     const [speciesFilter, setSpeciesFilter] = useState('')
@@ -47,41 +24,6 @@ export default function TreesPage() {
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [isShipmentDialogOpen, setIsShipmentDialogOpen] = useState(false)
 
-    // 初回読み込みとリフレッシュ用
-    const [refreshSignal, setRefreshSignal] = useState(0)
-    const refreshData = () => setRefreshSignal(prev => prev + 1)
-
-    useEffect(() => {
-        const load = async () => {
-            const supabase = createClient()
-
-            // 樹種一覧
-            const { data: speciesData } = await supabase
-                .from('species_master')
-                .select('id, name')
-                .order('name_kana')
-            setSpecies(speciesData || [])
-
-            // 樹木一覧
-            const { data: treesData } = await supabase
-                .from('trees')
-                .select(`*, species:species_master(name)`)
-                .order('tree_number', { ascending: false })
-            setTrees(treesData || [])
-
-            // 場所一覧（ユニーク値）
-            const uniqueLocations = [...new Set(
-                (treesData || [])
-                    .map(t => t.location)
-                    .filter(Boolean)
-            )] as string[]
-            setLocations(uniqueLocations)
-
-            setLoading(false)
-        }
-        load()
-    }, [refreshSignal])
-
     // 成功時のリフレッシュ
     const handleShipmentSuccess = () => {
         setSelectedIds([])
@@ -89,12 +31,12 @@ export default function TreesPage() {
     }
 
     // フィルタ適用
-    const filteredTrees = trees.filter(tree => {
+    const filteredTrees = useMemo(() => trees.filter(tree => {
         if (speciesFilter && tree.species?.name !== speciesFilter) return false
         if (locationFilter && tree.location !== locationFilter) return false
         if (statusFilter && tree.status !== statusFilter) return false
         return true
-    })
+    }), [trees, speciesFilter, locationFilter, statusFilter])
 
     // 選択操作
     const toggleSelectAll = () => {
@@ -173,7 +115,7 @@ export default function TreesPage() {
                                 ← 戻る
                             </Link>
                             <h1 className="text-2xl font-bold text-green-800">
-                                📋 樹木一覧
+                                樹木一覧
                             </h1>
                         </div>
                         <Link
@@ -187,6 +129,32 @@ export default function TreesPage() {
             </header>
 
             <main className="max-w-7xl mx-auto px-4 py-8">
+                {/* オフラインインジケーター */}
+                {(!isOnline || pendingCount > 0) && (
+                    <div className={`rounded-xl px-4 py-3 mb-6 flex items-center gap-3 ${
+                        !isOnline
+                            ? 'bg-yellow-50 border border-yellow-300'
+                            : 'bg-blue-50 border border-blue-300'
+                    }`}>
+                        <span className="text-lg">{!isOnline ? '⚡' : '🔄'}</span>
+                        <div>
+                            {!isOnline ? (
+                                <>
+                                    <p className="text-sm font-bold text-yellow-800">オフラインモード</p>
+                                    <p className="text-xs text-yellow-600">
+                                        キャッシュデータを表示中。
+                                        {pendingCount > 0 && `未同期の編集が ${pendingCount} 件あります。`}
+                                    </p>
+                                </>
+                            ) : (
+                                <p className="text-sm font-bold text-blue-800">
+                                    未同期の編集が {pendingCount} 件あります（自動同期中...）
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                )}
+
                 {/* フィルター */}
                 <div className="bg-white rounded-xl shadow p-4 mb-6">
                     <div className="flex flex-wrap gap-4">
@@ -319,7 +287,7 @@ export default function TreesPage() {
                                                 {tree.trunk_count}本
                                             </td>
                                             <td className="px-4 py-3 font-bold text-green-700">
-                                                ¥{tree.price.toLocaleString()}
+                                                &yen;{tree.price.toLocaleString()}
                                             </td>
                                             <td className="px-4 py-3">
                                                 <span className={`px-2 py-1 rounded-full text-xs font-bold ${statusLabels[tree.status]?.color || ''}`}>
@@ -345,7 +313,7 @@ export default function TreesPage() {
                                 onClick={downloadCSV}
                                 className="text-sm font-bold text-green-700 hover:text-green-900 flex items-center gap-1 bg-white border border-green-200 px-3 py-1.5 rounded-lg shadow-sm hover:bg-green-50 transition-all"
                             >
-                                📥 CSV出力 (Excel用)
+                                CSV出力 (Excel用)
                             </button>
                         </div>
                     </div>
@@ -366,13 +334,13 @@ export default function TreesPage() {
                             onClick={() => alert(`機能開発中: ${selectedIds.length}本を予約する`)}
                             className="bg-yellow-600 hover:bg-yellow-700 px-4 sm:px-6 py-2 rounded-xl font-bold transition-all active:scale-95 whitespace-nowrap text-sm sm:text-base"
                         >
-                            🗓️ 予約
+                            予約
                         </button>
                         <button
                             onClick={() => setIsShipmentDialogOpen(true)}
                             className="bg-blue-600 hover:bg-blue-700 px-4 sm:px-6 py-2 rounded-xl font-bold transition-all active:scale-95 whitespace-nowrap text-sm sm:text-base"
                         >
-                            📦 出荷
+                            出荷
                         </button>
                         <button
                             onClick={() => setSelectedIds([])}
