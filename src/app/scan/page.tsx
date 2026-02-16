@@ -18,81 +18,84 @@ export default function ScanPage() {
     // 管理番号で検索（オンライン→Supabase、オフライン→IndexedDBキャッシュ）
     async function handleNumberSearch(e: React.FormEvent) {
         e.preventDefault()
-        const query = managementNumber.trim().toUpperCase()
+        const query = managementNumber.trim()
         if (!query) return
 
         setSearching(true)
         setSearchError(null)
 
-        // まずオンラインでSupabase検索を試みる
-        if (navigator.onLine) {
-            try {
+        try {
+            // オンラインでSupabase検索を試みる
+            if (navigator.onLine) {
                 const supabase = createClient()
 
-                // 完全一致
-                let { data } = await supabase
+                // 部分一致（大文字小文字無視）で検索
+                const { data: trees, error } = await supabase
                     .from('trees')
-                    .select('id')
-                    .eq('management_number', query)
-                    .maybeSingle()
+                    .select('id, management_number, tree_number')
+                    .ilike('management_number', `%${query}%`)
+                    .limit(5)
 
-                // 部分一致（末尾の番号部分のゼロ埋めなしでも検索可能に）
-                if (!data) {
-                    const { data: partialData } = await supabase
-                        .from('trees')
-                        .select('id')
-                        .ilike('management_number', `%${query}%`)
-                        .limit(1)
-                        .maybeSingle()
-                    data = partialData
+                if (error) {
+                    console.error('検索エラー:', error)
+                    setSearchError(`検索エラー: ${error.message}`)
+                    setSearching(false)
+                    return
+                }
+
+                if (trees && trees.length > 0) {
+                    setSearching(false)
+                    router.push(`/trees/${trees[0].id}`)
+                    return
                 }
 
                 // 数字のみ入力の場合はtree_numberでも検索
-                if (!data && /^\d+$/.test(query)) {
-                    const { data: numData } = await supabase
+                if (/^\d+$/.test(query)) {
+                    const { data: numData, error: numError } = await supabase
                         .from('trees')
                         .select('id')
                         .eq('tree_number', parseInt(query, 10))
                         .maybeSingle()
-                    data = numData
+
+                    if (numError) {
+                        console.error('番号検索エラー:', numError)
+                    }
+
+                    if (numData) {
+                        setSearching(false)
+                        router.push(`/trees/${numData.id}`)
+                        return
+                    }
+                }
+            }
+
+            // オフライン or オンライン検索で見つからなかった場合 → IndexedDBキャッシュを検索
+            const cached = await db.trees.toArray()
+            if (cached.length > 0) {
+                const upperQuery = query.toUpperCase()
+
+                // 部分一致
+                let found = cached.find(t =>
+                    t.management_number?.toUpperCase().includes(upperQuery)
+                )
+
+                // 数字のみならtree_numberでも
+                if (!found && /^\d+$/.test(query)) {
+                    found = cached.find(t => t.tree_number === parseInt(query, 10))
                 }
 
-                if (data) {
-                    router.push(`/trees/${data.id}`)
+                if (found) {
+                    setSearching(false)
+                    router.push(`/trees/${found.id}`)
                     return
                 }
-            } catch {
-                // ネットワークエラー → オフライン検索にフォールバック
             }
+
+            setSearchError(`「${query}」に該当する樹木が見つかりません`)
+        } catch (err) {
+            console.error('検索処理エラー:', err)
+            setSearchError('検索中にエラーが発生しました')
         }
-
-        // オフライン or オンライン検索で見つからなかった場合 → IndexedDBキャッシュを検索
-        const cached = await db.trees.toArray()
-        if (cached.length > 0) {
-            // 完全一致
-            let found = cached.find(t =>
-                t.management_number?.toUpperCase() === query
-            )
-
-            // 部分一致
-            if (!found) {
-                found = cached.find(t =>
-                    t.management_number?.toUpperCase().includes(query)
-                )
-            }
-
-            // 数字のみならtree_numberでも
-            if (!found && /^\d+$/.test(query)) {
-                found = cached.find(t => t.tree_number === parseInt(query, 10))
-            }
-
-            if (found) {
-                router.push(`/trees/${found.id}`)
-                return
-            }
-        }
-
-        setSearchError(`「${managementNumber.trim()}」に該当する樹木が見つかりません`)
         setSearching(false)
     }
 
