@@ -235,12 +235,20 @@ export default function NewTreePage() {
                         <label className="block text-sm font-bold text-gray-700">
                             本立ち（株立ち本数）
                         </label>
-                        <div className="flex flex-wrap gap-2">
-                            {['1', '2', '3', '4'].map(v => (
+                        <div className="flex flex-wrap gap-2 mb-2">
+                            {['1', '2', '3', '4', '5'].map(v => (
                                 <QuickButton key={v} label={v} value={v} field="trunk_count" />
                             ))}
-                            <QuickButton label="5本以上" value="5" field="trunk_count" />
                         </div>
+                        <input
+                            type="number"
+                            min="1"
+                            max="30"
+                            value={formData.trunk_count}
+                            onChange={(e) => setFormData({ ...formData, trunk_count: e.target.value })}
+                            placeholder="6本以上はここに入力"
+                            className="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        />
                     </div>
 
                     {/* 上代（価格）*/}
@@ -271,9 +279,14 @@ export default function NewTreePage() {
                             required
                             value={formData.price}
                             onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                            placeholder="または価格を入力"
+                            placeholder="10万超はここに入力（例: 120000）"
                             className="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                         />
+                        {formData.price && parseInt(formData.price) > 0 && (
+                            <p className="text-sm font-bold text-green-700">
+                                &yen;{parseInt(formData.price).toLocaleString()}
+                            </p>
+                        )}
                     </div>
 
                     {/* 圃場選択 */}
