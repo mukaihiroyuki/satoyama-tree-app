@@ -235,10 +235,11 @@ export default function NewTreePage() {
                         <label className="block text-sm font-bold text-gray-700">
                             本立ち（株立ち本数）
                         </label>
-                        <div className="flex gap-2">
-                            {['1', '2', '3', '5'].map(v => (
+                        <div className="flex flex-wrap gap-2">
+                            {['1', '2', '3', '4'].map(v => (
                                 <QuickButton key={v} label={v} value={v} field="trunk_count" />
                             ))}
+                            <QuickButton label="5本以上" value="5" field="trunk_count" />
                         </div>
                     </div>
 
@@ -252,8 +253,12 @@ export default function NewTreePage() {
                                 { l: '1万', v: '10000' },
                                 { l: '2万', v: '20000' },
                                 { l: '3万', v: '30000' },
+                                { l: '4万', v: '40000' },
                                 { l: '5万', v: '50000' },
+                                { l: '6万', v: '60000' },
+                                { l: '7万', v: '70000' },
                                 { l: '8万', v: '80000' },
+                                { l: '9万', v: '90000' },
                                 { l: '10万', v: '100000' },
                             ].map(btn => (
                                 <QuickButton key={btn.v} label={btn.l} value={btn.v} field="price" />
