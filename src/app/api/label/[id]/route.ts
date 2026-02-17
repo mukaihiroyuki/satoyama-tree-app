@@ -46,19 +46,7 @@ export async function GET(
         // --- QRセルサイズを粗く（凹凸面対策） ---
         labelXml = labelXml.replace(/cellSize="[^"]+"/, 'cellSize="3.5pt"')
 
-        // --- テキスト行間を詰める ---
-        labelXml = replacePositionByObjectName(
-            labelXml, 'SPECIES',
-            'x="9.3pt" y="8.5pt" width="124.8pt" height="38pt"'
-        )
-        labelXml = replacePositionByObjectName(
-            labelXml, 'MGMT_NUM',
-            'x="13.8pt" y="42pt" width="279.4pt" height="35pt"'
-        )
-        labelXml = replacePositionByObjectName(
-            labelXml, 'PRICE',
-            'x="9.3pt" y="74pt" width="279.4pt" height="32pt"'
-        )
+        // テキスト行間はデモ後に調整（品名消失の原因調査が必要）
 
         zip.updateFile('label.xml', Buffer.from(labelXml, 'utf8'))
         const outputBuffer = zip.toBuffer()
