@@ -14,7 +14,8 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const { id: rawId } = await params
-    const treeId = rawId.replace(/\.lbx$/, '')
+    // .lbx拡張子とキャッシュバスター(_timestamp)を除去してツリーIDを取得
+    const treeId = rawId.replace(/\.lbx$/, '').replace(/_\d+$/, '')
     // QRデータはIDのみ（短い = セル数が減る = 1粒が大きく = 曲面でも読みやすい）
     const qrData = treeId
 

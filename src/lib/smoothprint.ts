@@ -32,7 +32,9 @@ export function buildSmoothPrintUrl(
     copies: number = 1
 ): string {
     // QRデータを埋め込んだテンプレートを動的生成（パスベースでクエリパラメータなし）
-    const templateUrl = `${baseUrl}/api/label/${data.treeId}.lbx`
+    // キャッシュバスター: Smooth Printが古い.lbxをキャッシュするため、パスにタイムスタンプを埋め込む
+    const cacheBuster = Date.now()
+    const templateUrl = `${baseUrl}/api/label/${data.treeId}_${cacheBuster}.lbx`
 
     const parts: string[] = [
         `filename=${encodeURIComponent(templateUrl)}`,
