@@ -40,7 +40,7 @@ export async function GET(
         // --- QRサイズ縮小: 40pt角（太い木の曲面対策） ---
         labelXml = replacePositionByObjectName(
             labelXml, 'QR',
-            'x="240pt" y="50pt" width="40pt" height="40pt"'
+            'x="226pt" y="50pt" width="40pt" height="40pt"'
         )
 
         // --- QRセルサイズを粗く（凹凸面対策） ---
