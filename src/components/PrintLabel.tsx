@@ -79,7 +79,7 @@ export default function PrintLabel({
                 </div>
 
                 {/* 樹種名と番号 */}
-                <div className="text-center space-y-4 my-8">
+                <div className="text-center space-y-1 my-4">
                     {managementNumber && <div className="text-3xl font-mono font-black">{managementNumber}</div>}
                     <div className="text-5xl font-bold">{speciesName}</div>
                     {price && <div className="text-2xl font-bold">¥{price.toLocaleString()}</div>}
@@ -89,7 +89,7 @@ export default function PrintLabel({
                 <div className="my-4">
                     <QRCodeSVG
                         value={url}
-                        size={250}
+                        size={160}
                         level="H"
                         includeMargin={true}
                     />
