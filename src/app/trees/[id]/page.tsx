@@ -8,6 +8,7 @@ import Image from 'next/image'
 import PrintLabel from '@/components/PrintLabel'
 import TreeEditForm from '@/components/TreeEditForm'
 import { buildSmoothPrintUrl, type TreeLabelData } from '@/lib/smoothprint'
+import ShipmentDialog from '@/components/ShipmentDialog'
 import { useTree } from '@/hooks/useTree'
 
 const statusLabels: Record<string, { label: string; color: string }> = {
@@ -23,6 +24,7 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
     const fileInputRef = useRef<HTMLInputElement>(null)
     const { tree, loading, isOnline, saveEdit, saveMessage, refreshData } = useTree(id)
     const [uploading, setUploading] = useState(false)
+    const [isShipmentDialogOpen, setIsShipmentDialogOpen] = useState(false)
     const [printLayout, setPrintLayout] = useState<'RJ-100' | 'PT-36' | 'PT-24'>('PT-36')
     const [printMode, setPrintMode] = useState<'airprint' | 'bluetooth'>(() => {
         if (typeof window !== 'undefined') {
@@ -131,8 +133,13 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
     }
 
     // 状態変更（useTree.saveEditを経由）
+    // 「出荷済み」は出荷ダイアログ経由で処理（出荷レコード作成のため）
     async function handleStatusChange(newStatus: string) {
         if (!tree) return
+        if (newStatus === 'shipped') {
+            setIsShipmentDialogOpen(true)
+            return
+        }
         await saveEdit({ status: newStatus })
     }
 
@@ -342,6 +349,20 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
                     </button>
                 )}
             </main>
+
+            {/* 出荷ダイアログ（詳細ページから1本出荷する場合） */}
+            <ShipmentDialog
+                isOpen={isShipmentDialogOpen}
+                onClose={() => setIsShipmentDialogOpen(false)}
+                selectedIds={[tree.id]}
+                selectedTrees={[{
+                    id: tree.id,
+                    tree_number: tree.tree_number,
+                    species_name: tree.species?.name || '不明',
+                    price: tree.price,
+                }]}
+                onSuccess={refreshData}
+            />
 
             {/* 印刷用ラベル（画面上は隠れ、印刷時だけ見える） */}
             <PrintLabel
