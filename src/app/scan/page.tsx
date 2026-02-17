@@ -20,26 +20,34 @@ export default function ScanPage() {
     const [searching, setSearching] = useState(false)
     const [searchError, setSearchError] = useState<string | null>(null)
 
-    // QR読み取り結果を処理
+    // QR読み取り結果を処理（UUIDのみ or フルURL 両対応）
     const handleQrResult = useCallback((decodedText: string) => {
         setScanResult(decodedText)
         setScanning(false)
 
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-        if (decodedText.includes('/trees/')) {
-            const id = decodedText.split('/trees/').pop()
-            if (id && uuidRegex.test(id)) {
-                router.push(`/trees/${id}`)
-            } else {
-                alert('無効なQRコードです。正しい樹木タグをスキャンしてください。')
-                setScanning(true)
-                setScanResult(null)
+        const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+        const text = decodedText.trim()
+
+        // フルURL形式: https://...../trees/{uuid}
+        if (text.includes('/trees/')) {
+            const id = text.split('/trees/').pop()
+            const match = id?.match(uuidRegex)
+            if (match) {
+                router.push(`/trees/${match[0]}`)
+                return
             }
-        } else {
-            alert('このQRコードは里山アプリのタグではないようです')
-            setScanning(true)
-            setScanResult(null)
         }
+
+        // UUIDのみ形式（新ラベル）
+        const directMatch = text.match(uuidRegex)
+        if (directMatch) {
+            router.push(`/trees/${directMatch[0]}`)
+            return
+        }
+
+        alert('このQRコードは里山アプリのタグではないようです')
+        setScanning(true)
+        setScanResult(null)
     }, [router])
 
     // カメラ起動 + QRスキャン（BarcodeDetector優先、フォールバックjsQR）

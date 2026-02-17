@@ -18,7 +18,8 @@ export async function GET(
     const treeId = rawId.replace(/\.lbx$/, '')
     // リクエストURLからベースURLを組み立て
     const baseUrl = `${request.nextUrl.protocol}//${request.nextUrl.host}`
-    const qrUrl = `${baseUrl}/trees/${treeId}`
+    // QRデータはIDのみ（短い = セル数が減る = 1粒が大きく = 曲面でも読みやすい）
+    const qrData = treeId
 
     try {
         const templatePath = join(process.cwd(), 'public', 'print-templates', 'satoyama_label.lbx')
@@ -35,7 +36,7 @@ export async function GET(
         // QRコードデータを埋め込み
         labelXml = labelXml.replace(
             /(<barcode:barcode>[\s\S]*?<pt:data>)([\s\S]*?)(<\/pt:data>)/,
-            `$1${escapeXml(qrUrl)}$3`
+            `$1${escapeXml(qrData)}$3`
         )
 
         // QRコードサイズ縮小: 62.1pt → 40pt（太い木の曲面対策）
@@ -45,7 +46,7 @@ export async function GET(
         )
         labelXml = labelXml.replace(
             /cellSize="2.4pt"/,
-            'cellSize="1.5pt"'
+            'cellSize="3.5pt"'
         )
 
         // テキスト行間を詰める
