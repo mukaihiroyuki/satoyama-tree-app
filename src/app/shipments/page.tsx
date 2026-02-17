@@ -67,7 +67,7 @@ export default function ShipmentsPage() {
                             const totalPrice = s.shipment_items?.reduce((sum, item) => sum + (item.unit_price || 0), 0) || 0
 
                             return (
-                                <div key={s.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
+                                <Link key={s.id} href={`/shipments/${s.id}`} className="block bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
                                     <div className="p-5 flex flex-wrap items-center justify-between gap-4">
                                         <div className="flex items-center gap-4">
                                             <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-lg text-sm font-bold">
@@ -88,11 +88,11 @@ export default function ShipmentsPage() {
                                     {s.notes && (
                                         <div className="px-5 pb-4">
                                             <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-600 border border-gray-100">
-                                                💬 {s.notes}
+                                                {s.notes}
                                             </div>
                                         </div>
                                     )}
-                                </div>
+                                </Link>
                             )
                         })}
                     </div>
