@@ -42,33 +42,17 @@ export default function ScanPage() {
         }
     }, [router])
 
-    // カメラ起動 + BarcodeDetector でスキャン
+    // カメラ起動 + QRスキャン（BarcodeDetector優先、フォールバックjsQR）
     useEffect(() => {
         if (!scanning) return
 
         let stopped = false
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let detector: any = null
 
         async function start() {
-            // BarcodeDetector の存在チェック
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const BarcodeDetectorClass = (window as any).BarcodeDetector
-            if (!BarcodeDetectorClass) {
-                setCameraError('このブラウザはQRコード読み取りに対応していません。iOS 17.2以上 / Chrome 83以上が必要です。')
-                return
-            }
-
+            // カメラ起動（共通）
+            let stream: MediaStream
             try {
-                detector = new BarcodeDetectorClass({ formats: ['qr_code'] })
-            } catch {
-                setCameraError('QRコードリーダーの初期化に失敗しました。')
-                return
-            }
-
-            // カメラ起動
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({
+                stream = await navigator.mediaDevices.getUserMedia({
                     video: {
                         facingMode: 'environment',
                         width: { ideal: 1280 },
@@ -97,6 +81,35 @@ export default function ScanPage() {
                 return
             }
 
+            // BarcodeDetector が使えるか判定
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const BarcodeDetectorClass = (window as any).BarcodeDetector
+            const useBarcodeDetector = !!BarcodeDetectorClass
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            let detector: any = null
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            let jsQR: any = null
+
+            if (useBarcodeDetector) {
+                try {
+                    detector = new BarcodeDetectorClass({ formats: ['qr_code'] })
+                } catch {
+                    detector = null
+                }
+            }
+
+            // BarcodeDetector が使えなければ jsQR をロード
+            if (!detector) {
+                try {
+                    const mod = await import('jsqr')
+                    jsQR = mod.default
+                } catch {
+                    setCameraError('QRコードリーダーの読み込みに失敗しました。ページを再読み込みしてください。')
+                    return
+                }
+            }
+
             // フレームスキャンループ
             async function scanFrame() {
                 if (stopped || !videoRef.current || videoRef.current.readyState < 2) {
@@ -104,14 +117,35 @@ export default function ScanPage() {
                     return
                 }
 
-                try {
-                    const barcodes = await detector.detect(videoRef.current)
-                    if (barcodes.length > 0) {
-                        handleQrResult(barcodes[0].rawValue)
-                        return
+                // --- BarcodeDetector パス ---
+                if (detector) {
+                    try {
+                        const barcodes = await detector.detect(videoRef.current)
+                        if (barcodes.length > 0) {
+                            handleQrResult(barcodes[0].rawValue)
+                            return
+                        }
+                    } catch {
+                        // detect失敗は無視
                     }
-                } catch {
-                    // detect失敗は無視して次フレームへ
+                }
+
+                // --- jsQR フォールバックパス ---
+                if (jsQR && canvasRef.current && videoRef.current) {
+                    const video = videoRef.current
+                    const canvas = canvasRef.current
+                    canvas.width = video.videoWidth
+                    canvas.height = video.videoHeight
+                    const ctx = canvas.getContext('2d')
+                    if (ctx) {
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+                        const code = jsQR(imageData.data, imageData.width, imageData.height)
+                        if (code) {
+                            handleQrResult(code.data)
+                            return
+                        }
+                    }
                 }
 
                 if (!stopped) {
@@ -232,7 +266,7 @@ export default function ScanPage() {
                             <div className="w-56 h-56 border-2 border-green-400 rounded-lg opacity-70" />
                         </div>
                     )}
-                    {/* 非表示canvas（将来のフォールバック用） */}
+                    {/* jsQRデコード用canvas */}
                     <canvas ref={canvasRef} className="hidden" />
 
                     {cameraError && (
