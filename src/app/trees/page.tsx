@@ -18,7 +18,7 @@ export default function TreesPage() {
     // フィルター状態
     const [speciesFilter, setSpeciesFilter] = useState('')
     const [locationFilter, setLocationFilter] = useState('')
-    const [statusFilter, setStatusFilter] = useState('')
+    const [statusFilter, setStatusFilter] = useState('in_stock')
 
     // 選択状態
     const [selectedIds, setSelectedIds] = useState<string[]>([])

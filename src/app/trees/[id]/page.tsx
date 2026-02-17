@@ -331,14 +331,16 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
                     </dl>
                 </div>
 
-                {/* 削除ボタン */}
-                <button
-                    onClick={handleDelete}
-                    disabled={!isOnline}
-                    className="w-full bg-red-50 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed text-red-600 py-3 rounded-lg font-semibold border border-red-200"
-                >
-                    {isOnline ? 'この樹木を削除' : '削除はオンライン時のみ'}
-                </button>
+                {/* 削除ボタン（出荷済みは出荷履歴を保護するため削除不可） */}
+                {tree.status !== 'shipped' && (
+                    <button
+                        onClick={handleDelete}
+                        disabled={!isOnline}
+                        className="w-full bg-red-50 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed text-red-600 py-3 rounded-lg font-semibold border border-red-200"
+                    >
+                        {isOnline ? 'この樹木を削除' : '削除はオンライン時のみ'}
+                    </button>
+                )}
             </main>
 
             {/* 印刷用ラベル（画面上は隠れ、印刷時だけ見える） */}
