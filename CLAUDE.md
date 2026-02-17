@@ -26,7 +26,8 @@ npm run lint     # ESLint実行 (eslint)
 - **Next.js 15** (App Router) + **React 18** + **TypeScript 5** (strict mode)
 - **Supabase** (PostgreSQL + Auth + Storage) — Email OTP認証、全テーブルRLS有効
 - **Tailwind CSS 4** + PostCSS
-- **PWA**: `@ducanh2912/next-pwa` (開発時は無効化)
+- **PWA**: `@ducanh2912/next-pwa` (開発時は無効化、`cacheOnFrontEndNav` + `aggressiveFrontEndNavCaching` 有効)
+- **オフラインDB**: `dexie` v4 (IndexedDB) — 樹木データのローカルキャッシュ＋オフライン編集キュー
 - **QR**: `html5-qrcode`(読取）、`qrcode.react`（生成）
 - **印刷**: AirPrint + Brother Smooth Print URL scheme (Bluetooth)
 - **ラベル**: `adm-zip` で .lbx テンプレートのZIP操作
@@ -43,8 +44,11 @@ src/
 │   ├── shipments/          # 出荷履歴
 │   ├── clients/            # 顧客マスタ
 │   └── page.tsx            # ダッシュボード (在庫統計)
-├── components/             # PrintLabel, ShipmentDialog
+├── components/             # PrintLabel, ShipmentDialog, TreeEditForm
+├── hooks/                  # useTree, useTrees, useOnlineStatus
 ├── lib/
+│   ├── db.ts               # Dexie.js IndexedDBスキーマ (trees, species, pendingEdits)
+│   ├── tree-repository.ts  # データアクセス層 (Supabase ↔ IndexedDB)
 │   ├── smoothprint.ts      # Brother Smooth Print URL scheme ビルダー
 │   └── supabase/           # client.ts (ブラウザ用) / server.ts (SSR用)
 └── types/
@@ -56,8 +60,9 @@ src/
 ### データフロー
 
 - **Supabase** がデータの中心。ブラウザからは `@supabase/supabase-js`、サーバーからは `@supabase/ssr` で接続
-- **画像**: Supabase Storage (`tree-photos` バケット) に保存。アップロード時1200px幅に自動圧縮
-- **状態管理**: React `useState` + `useEffect` のみ（Redux/Context不使用）。データ更新は `refreshSignal` で再取得トリガー
+- **オフラインキャッシュ**: `tree-repository.ts` が Supabase と IndexedDB の間を仲介。オンライン時はSupabase→IndexedDBキャッシュ→UI、オフライン時はIndexedDB→UI。編集は `pendingEdits` テーブルにキューイングし、復帰時に自動同期
+- **画像**: Supabase Storage (`tree-photos` バケット) に保存。アップロード時1200px幅に自動圧縮（オンライン専用）
+- **状態管理**: React `useState` + `useEffect` + カスタムフック（`useTree`, `useTrees`）。オフライン状態は `useOnlineStatus` で検知
 - **CSV出力**: BOM付きUTF-8でExcel互換
 
 ### DBテーブル
@@ -104,6 +109,13 @@ src/
 NEXT_PUBLIC_SUPABASE_URL     # Supabase プロジェクトURL
 NEXT_PUBLIC_SUPABASE_ANON_KEY # Supabase anon key
 ```
+
+## オフライン対応の注意事項
+
+- **html5-qrcode, dexie は動的importすること**: 静的importするとSSR/Service Worker環境でモジュール解決が失敗し、ページ全体のJSが壊れる
+- **`navigator.onLine` は「電波あり」を保証しない**: `true` でも実際に通信できない場合がある。Supabase呼出がタイムアウトしてもキャッシュにフォールバックする設計
+- **オフライン非対応の機能**: 新規樹木登録（管理番号採番にDB必要）、写真アップロード/削除、樹木削除、出荷操作
+- **pendingEditsの同期**: `syncPendingEdits()` はtree_idごとに変更をまとめてSupabaseへ送信。同じフィールドの複数編集は最新値のみ送信
 
 ## 開発時の注意
 
