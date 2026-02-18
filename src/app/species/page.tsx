@@ -19,9 +19,6 @@ export default function SpeciesPage() {
     const [nameKana, setNameKana] = useState('')
     const [code, setCode] = useState('')
     const [submitting, setSubmitting] = useState(false)
-    const [editingId, setEditingId] = useState<string | null>(null)
-    const [editCode, setEditCode] = useState('')
-    const [savingCode, setSavingCode] = useState(false)
     const [usageCounts, setUsageCounts] = useState<Record<string, number>>({})
     const [deleting, setDeleting] = useState<string | null>(null)
 
@@ -81,24 +78,6 @@ export default function SpeciesPage() {
             await fetchSpecies()
         }
         setSubmitting(false)
-    }
-
-    const handleCodeSave = async (id: string) => {
-        setSavingCode(true)
-        const supabase = createClient()
-        const { error } = await supabase
-            .from('species_master')
-            .update({ code: editCode.trim().toUpperCase() || null })
-            .eq('id', id)
-
-        if (error) {
-            alert('コード更新に失敗しました: ' + error.message)
-        } else {
-            setEditingId(null)
-            setEditCode('')
-            await fetchSpecies()
-        }
-        setSavingCode(false)
     }
 
     const handleDelete = async (s: Species) => {
@@ -191,49 +170,9 @@ export default function SpeciesPage() {
                                     <td className="px-6 py-4 font-bold text-gray-800">{s.name}</td>
                                     <td className="px-6 py-4 text-sm text-gray-500">{s.name_kana || '-'}</td>
                                     <td className="px-6 py-4">
-                                        {editingId === s.id ? (
-                                            <div className="flex items-center gap-2">
-                                                <input
-                                                    type="text"
-                                                    value={editCode}
-                                                    onChange={(e) => setEditCode(e.target.value)}
-                                                    className="w-20 border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                                                    autoFocus
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter') handleCodeSave(s.id)
-                                                        if (e.key === 'Escape') setEditingId(null)
-                                                    }}
-                                                />
-                                                <button
-                                                    onClick={() => handleCodeSave(s.id)}
-                                                    disabled={savingCode}
-                                                    className="text-green-600 hover:text-green-800 text-sm font-bold"
-                                                >
-                                                    保存
-                                                </button>
-                                                <button
-                                                    onClick={() => setEditingId(null)}
-                                                    className="text-gray-400 hover:text-gray-600 text-sm"
-                                                >
-                                                    取消
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center gap-2">
-                                                <span className={`text-sm ${s.code ? 'font-mono font-bold text-gray-800' : 'text-gray-400'}`}>
-                                                    {s.code || '未設定'}
-                                                </span>
-                                                <button
-                                                    onClick={() => {
-                                                        setEditingId(s.id)
-                                                        setEditCode(s.code || '')
-                                                    }}
-                                                    className="text-blue-600 hover:text-blue-800 text-xs font-bold"
-                                                >
-                                                    編集
-                                                </button>
-                                            </div>
-                                        )}
+                                        <span className={`text-sm ${s.code ? 'font-mono font-bold text-gray-800' : 'text-gray-400'}`}>
+                                            {s.code || '未設定'}
+                                        </span>
                                     </td>
                                     <td className="px-6 py-4">
                                         {(usageCounts[s.id] || 0) > 0 ? (
