@@ -22,6 +22,8 @@ export default function SpeciesPage() {
     const [editingId, setEditingId] = useState<string | null>(null)
     const [editCode, setEditCode] = useState('')
     const [savingCode, setSavingCode] = useState(false)
+    const [usageCounts, setUsageCounts] = useState<Record<string, number>>({})
+    const [deleting, setDeleting] = useState<string | null>(null)
 
     const fetchSpecies = async () => {
         const supabase = createClient()
@@ -40,6 +42,17 @@ export default function SpeciesPage() {
                 .select('*')
                 .order('name_kana')
             setSpecies(data || [])
+
+            // 各樹種の使用本数を取得
+            const { data: trees } = await supabase
+                .from('trees')
+                .select('species_id')
+            const counts: Record<string, number> = {}
+            trees?.forEach(t => {
+                counts[t.species_id] = (counts[t.species_id] || 0) + 1
+            })
+            setUsageCounts(counts)
+
             setLoading(false)
         }
         load()
@@ -86,6 +99,29 @@ export default function SpeciesPage() {
             await fetchSpecies()
         }
         setSavingCode(false)
+    }
+
+    const handleDelete = async (s: Species) => {
+        const count = usageCounts[s.id] || 0
+        if (count > 0) {
+            alert(`「${s.name}」は ${count}本の樹木で使用中のため削除できません`)
+            return
+        }
+        if (!confirm(`「${s.name}」を削除しますか？`)) return
+
+        setDeleting(s.id)
+        const supabase = createClient()
+        const { error } = await supabase
+            .from('species_master')
+            .delete()
+            .eq('id', s.id)
+
+        if (error) {
+            alert('削除に失敗しました: ' + error.message)
+        } else {
+            await fetchSpecies()
+        }
+        setDeleting(null)
     }
 
     if (loading) return <div className="p-8">読み込み中...</div>
@@ -146,6 +182,7 @@ export default function SpeciesPage() {
                                 <th className="px-6 py-4 text-sm font-bold text-gray-600">樹種名</th>
                                 <th className="px-6 py-4 text-sm font-bold text-gray-600">読み仮名</th>
                                 <th className="px-6 py-4 text-sm font-bold text-gray-600">コード</th>
+                                <th className="px-6 py-4 text-sm font-bold text-gray-600">操作</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -198,11 +235,24 @@ export default function SpeciesPage() {
                                             </div>
                                         )}
                                     </td>
+                                    <td className="px-6 py-4">
+                                        {(usageCounts[s.id] || 0) > 0 ? (
+                                            <span className="text-xs text-gray-400">{usageCounts[s.id]}本で使用中</span>
+                                        ) : (
+                                            <button
+                                                onClick={() => handleDelete(s)}
+                                                disabled={deleting === s.id}
+                                                className="text-red-500 hover:text-red-700 text-xs font-bold"
+                                            >
+                                                {deleting === s.id ? '削除中...' : '削除'}
+                                            </button>
+                                        )}
+                                    </td>
                                 </tr>
                             ))}
                             {species.length === 0 && (
                                 <tr>
-                                    <td colSpan={3} className="px-6 py-12 text-center text-gray-400">
+                                    <td colSpan={4} className="px-6 py-12 text-center text-gray-400">
                                         まだ樹種が登録されていません
                                     </td>
                                 </tr>
