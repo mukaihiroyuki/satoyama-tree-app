@@ -142,8 +142,8 @@ export default function NewTreePage() {
         }
 
         // 成功したらその樹木の詳細ページへ（即印刷できるように）
-        router.push(`/trees/${newTree.id}`)
-        router.refresh()
+        // replace: ブラウザバックで入力済みフォームに戻らないようにする
+        router.replace(`/trees/${newTree.id}`)
     }
 
     return (
