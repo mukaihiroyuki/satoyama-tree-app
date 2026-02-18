@@ -12,7 +12,7 @@ interface ShipmentDialogProps {
     isOpen: boolean
     onClose: () => void
     selectedIds: string[]
-    selectedTrees: { id: string; tree_number: number; species_name: string; price: number }[]
+    selectedTrees: { id: string; management_number: string | null; species_name: string; price: number }[]
     onSuccess: () => void
 }
 
@@ -185,7 +185,7 @@ export default function ShipmentDialog({ isOpen, onClose, selectedIds, selectedT
                         <ul className="text-sm space-y-1">
                             {selectedTrees.slice(0, 5).map(tree => (
                                 <li key={tree.id} className="flex justify-between">
-                                    <span className="text-gray-600">#{tree.tree_number} {tree.species_name}</span>
+                                    <span className="text-gray-600">{tree.management_number || '-'} {tree.species_name}</span>
                                     <span className="font-mono">¥{tree.price.toLocaleString()}</span>
                                 </li>
                             ))}

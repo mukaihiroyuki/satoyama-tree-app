@@ -194,7 +194,7 @@ export default function ScanPage() {
 
                 const { data: trees, error } = await supabase
                     .from('trees')
-                    .select('id, management_number, tree_number')
+                    .select('id, management_number')
                     .ilike('management_number', `%${query}%`)
                     .limit(5)
 
@@ -209,18 +209,6 @@ export default function ScanPage() {
                     return
                 }
 
-                if (/^\d+$/.test(query)) {
-                    const { data: numData } = await supabase
-                        .from('trees')
-                        .select('id')
-                        .eq('tree_number', parseInt(query, 10))
-                        .maybeSingle()
-
-                    if (numData) {
-                        router.push(`/trees/${numData.id}`)
-                        return
-                    }
-                }
             }
 
             // オフライン時: IndexedDBキャッシュから検索
@@ -229,12 +217,9 @@ export default function ScanPage() {
                 const cached = await db.trees.toArray()
                 const upperQuery = query.toUpperCase()
 
-                let found = cached.find(t =>
+                const found = cached.find(t =>
                     t.management_number?.toUpperCase().includes(upperQuery)
                 )
-                if (!found && /^\d+$/.test(query)) {
-                    found = cached.find(t => t.tree_number === parseInt(query, 10))
-                }
                 if (found) {
                     router.push(`/trees/${found.id}`)
                     return
@@ -322,7 +307,7 @@ export default function ScanPage() {
                                     type="text"
                                     value={managementNumber}
                                     onChange={(e) => setManagementNumber(e.target.value)}
-                                    placeholder="例: 26-AO-0001 または 1"
+                                    placeholder="例: 26-AO-0001"
                                     className="w-full px-4 py-3 rounded-lg bg-white text-black text-lg font-mono text-center border-2 border-green-400"
                                     onKeyDown={(e) => { if (e.key === 'Enter') handleSearch() }}
                                 />
@@ -335,7 +320,7 @@ export default function ScanPage() {
                                     {searching ? '検索中...' : '検索'}
                                 </button>
                                 <p className="text-zinc-500 text-xs">
-                                    管理番号（26-AO-0001）または通し番号（1）で検索
+                                    管理番号で検索（例: 26-AO-0001）
                                 </p>
                                 {searchError && (
                                     <p className="text-red-400 font-bold">{searchError}</p>

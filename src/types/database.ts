@@ -13,7 +13,6 @@ export interface SpeciesMaster {
 
 export interface Tree {
     id: string
-    tree_number: number
     species_id: string
     height: number
     trunk_count: number

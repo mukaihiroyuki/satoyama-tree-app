@@ -18,7 +18,6 @@ interface ShipmentDetail {
         discount_amount: number | null
         tree: {
             id: string
-            tree_number: number
             management_number: string | null
             height: number
             trunk_count: number
@@ -58,7 +57,6 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                         discount_amount,
                         tree:trees(
                             id,
-                            tree_number,
                             management_number,
                             height,
                             trunk_count,
@@ -232,7 +230,7 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                                                                         className="font-mono text-blue-600 hover:underline"
                                                                         onClick={(e) => e.stopPropagation()}
                                                                     >
-                                                                        {item.tree.management_number || `#${item.tree.tree_number}`}
+                                                                        {item.tree.management_number || '-'}
                                                                     </Link>
                                                                 ) : (
                                                                     <span className="text-gray-400">-</span>

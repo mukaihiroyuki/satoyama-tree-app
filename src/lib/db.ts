@@ -3,7 +3,6 @@ import Dexie, { type EntityTable } from 'dexie'
 // キャッシュ済み樹木（Supabaseのjoin結果と同等の形）
 export interface CachedTree {
     id: string
-    tree_number: number
     species_id: string
     height: number
     trunk_count: number
@@ -46,8 +45,8 @@ const db = new Dexie('SatoyamaOfflineDB') as Dexie & {
     pendingEdits: EntityTable<PendingEdit, 'id'>
 }
 
-db.version(1).stores({
-    trees: 'id, tree_number, status, location',
+db.version(2).stores({
+    trees: 'id, management_number, status, location',
     species: 'id, name',
     pendingEdits: '++id, tree_id, synced',
 })

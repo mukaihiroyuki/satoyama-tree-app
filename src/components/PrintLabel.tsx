@@ -6,7 +6,6 @@ export type LabelLayout = 'RJ-100' | 'PT-36' | 'PT-24'
 
 interface PrintLabelProps {
     treeId: string
-    treeNumber: number
     speciesName: string
     url: string
     price?: number
@@ -16,7 +15,6 @@ interface PrintLabelProps {
 
 export default function PrintLabel({
     treeId,
-    treeNumber,
     speciesName,
     url,
     price,

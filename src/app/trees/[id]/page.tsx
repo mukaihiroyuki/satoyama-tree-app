@@ -150,7 +150,7 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
             alert('削除はオンライン時のみ可能です')
             return
         }
-        if (!confirm(`#${tree.tree_number} ${tree.species?.name} を削除しますか？`)) return
+        if (!confirm(`${tree.management_number || ''} ${tree.species?.name} を削除しますか？`)) return
 
         const supabase = createClient()
         const { error } = await supabase
@@ -197,7 +197,7 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
                                 ← 戻る
                             </Link>
                             <h1 className="text-2xl font-bold text-green-800">
-                                #{tree.tree_number} {tree.species?.name}
+                                {tree.management_number || ''} {tree.species?.name}
                             </h1>
                         </div>
                         <div className="flex items-center gap-2">
@@ -357,7 +357,7 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
                 selectedIds={[tree.id]}
                 selectedTrees={[{
                     id: tree.id,
-                    tree_number: tree.tree_number,
+                    management_number: tree.management_number,
                     species_name: tree.species?.name || '不明',
                     price: tree.price,
                 }]}
@@ -367,7 +367,6 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
             {/* 印刷用ラベル（画面上は隠れ、印刷時だけ見える） */}
             <PrintLabel
                 treeId={tree.id}
-                treeNumber={tree.tree_number}
                 speciesName={tree.species?.name}
                 price={tree.price}
                 managementNumber={tree.management_number}

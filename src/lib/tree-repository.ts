@@ -13,7 +13,7 @@ export async function getAllTrees(): Promise<CachedTree[]> {
             const { data, error } = await supabase
                 .from('trees')
                 .select('*, species:species_master(id, name)')
-                .order('tree_number', { ascending: false })
+                .order('created_at', { ascending: false })
 
             if (!error && data) {
                 // IndexedDBを全入れ替え
@@ -27,7 +27,7 @@ export async function getAllTrees(): Promise<CachedTree[]> {
     }
 
     // オフラインまたはエラー時: キャッシュから返却
-    const cached = await db.trees.orderBy('tree_number').reverse().toArray()
+    const cached = await db.trees.orderBy('created_at').reverse().toArray()
     // 未同期の編集を反映
     return applyPendingEditsToList(cached)
 }

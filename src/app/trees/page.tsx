@@ -57,16 +57,16 @@ export default function TreesPage() {
         .filter(t => selectedIds.includes(t.id))
         .map(t => ({
             id: t.id,
-            tree_number: t.tree_number,
+            management_number: t.management_number,
             species_name: t.species?.name || '不明',
             price: t.price
         }))
 
     // CSVダウンロード機能
     const downloadCSV = () => {
-        const headers = ["No.", "樹種", "樹高(m)", "本立ち", "上代(円)", "状態", "場所", "入荷日", "備考"]
+        const headers = ["管理番号", "樹種", "樹高(m)", "本立ち", "上代(円)", "状態", "場所", "入荷日", "備考"]
         const rows = filteredTrees.map(t => [
-            `#${t.tree_number}`,
+            t.management_number || '-',
             t.species?.name || '-',
             t.height,
             t.trunk_count,
@@ -250,7 +250,7 @@ export default function TreesPage() {
                                                 onChange={toggleSelectAll}
                                             />
                                         </th>
-                                        <th className="px-4 py-3 text-sm font-semibold text-green-800">No.</th>
+                                        <th className="px-4 py-3 text-sm font-semibold text-green-800">管理番号</th>
                                         <th className="px-4 py-3 text-sm font-semibold text-green-800">樹種</th>
                                         <th className="px-4 py-3 text-sm font-semibold text-green-800">樹高</th>
                                         <th className="px-4 py-3 text-sm font-semibold text-green-800">本立ち</th>
@@ -275,7 +275,7 @@ export default function TreesPage() {
                                                 />
                                             </td>
                                             <td className="px-4 py-3 font-mono text-sm font-bold text-gray-600">
-                                                #{tree.tree_number}
+                                                {tree.management_number || '-'}
                                             </td>
                                             <td className="px-4 py-3 font-medium">
                                                 {tree.species?.name || '-'}
