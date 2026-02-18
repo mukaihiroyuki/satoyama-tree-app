@@ -104,7 +104,7 @@ export default function ClientsPage() {
     }
 
     const formatRate = (rate: number | null) => {
-        if (rate === null || rate === 1) return '-'
+        if (rate === null || rate === 1) return '未設定'
         return `${Math.round(rate * 100)}%`
     }
 
@@ -179,54 +179,65 @@ export default function ClientsPage() {
                             <tr>
                                 <th className="px-6 py-4 text-sm font-bold text-gray-600">名前</th>
                                 <th className="px-6 py-4 text-sm font-bold text-gray-600">住所・備考</th>
-                                <th className="px-6 py-4 text-sm font-bold text-gray-600">掛け率</th>
                                 <th className="px-6 py-4 text-sm font-bold text-gray-600">操作</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {clients.map((c) => (
                                 <tr key={c.id} className="hover:bg-gray-50 transition-colors">
-                                    <td className="px-6 py-4 font-bold text-gray-800">{c.name}</td>
+                                    <td className="px-6 py-4">
+                                        <div className="font-bold text-gray-800">{c.name}</div>
+                                        <div className="mt-1">
+                                            {editingRateId === c.id ? (
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs text-gray-400">掛け率:</span>
+                                                    <input
+                                                        type="number"
+                                                        value={editingRateValue}
+                                                        onChange={(e) => setEditingRateValue(e.target.value)}
+                                                        step="0.01"
+                                                        min="0"
+                                                        max="1"
+                                                        placeholder="0.70"
+                                                        className="w-20 border border-green-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                                                        autoFocus
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') handleRateUpdate(c.id)
+                                                            if (e.key === 'Escape') setEditingRateId(null)
+                                                        }}
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRateUpdate(c.id)}
+                                                        className="text-green-600 text-xs font-bold px-2 py-1"
+                                                    >
+                                                        保存
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setEditingRateId(null)}
+                                                        className="text-gray-400 text-xs px-1 py-1"
+                                                    >
+                                                        取消
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setEditingRateId(c.id)
+                                                        setEditingRateValue(c.default_rate !== null && c.default_rate !== 1 ? String(c.default_rate) : '')
+                                                    }}
+                                                    className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-500 active:bg-green-100"
+                                                >
+                                                    掛け率: {formatRate(c.default_rate)}
+                                                </button>
+                                            )}
+                                        </div>
+                                    </td>
                                     <td className="px-6 py-4 text-sm text-gray-500">
                                         <div>{c.address || '-'}</div>
                                         <div className="text-xs text-gray-400 mt-1">{c.notes}</div>
-                                    </td>
-                                    <td className="px-6 py-4 text-sm">
-                                        {editingRateId === c.id ? (
-                                            <div className="flex items-center gap-1">
-                                                <input
-                                                    type="number"
-                                                    value={editingRateValue}
-                                                    onChange={(e) => setEditingRateValue(e.target.value)}
-                                                    step="0.01"
-                                                    min="0"
-                                                    max="1"
-                                                    className="w-20 border border-green-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                                                    autoFocus
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter') handleRateUpdate(c.id)
-                                                        if (e.key === 'Escape') setEditingRateId(null)
-                                                    }}
-                                                />
-                                                <button
-                                                    onClick={() => handleRateUpdate(c.id)}
-                                                    className="text-green-600 hover:text-green-700 text-xs font-bold"
-                                                >
-                                                    保存
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <button
-                                                onClick={() => {
-                                                    setEditingRateId(c.id)
-                                                    setEditingRateValue(c.default_rate !== null && c.default_rate !== 1 ? String(c.default_rate) : '')
-                                                }}
-                                                className="text-gray-600 hover:text-green-600 cursor-pointer"
-                                                title="クリックして編集"
-                                            >
-                                                {formatRate(c.default_rate)}
-                                            </button>
-                                        )}
                                     </td>
                                     <td className="px-6 py-4">
                                         <button
@@ -241,7 +252,7 @@ export default function ClientsPage() {
                             ))}
                             {clients.length === 0 && (
                                 <tr>
-                                    <td colSpan={4} className="px-6 py-12 text-center text-gray-400">
+                                    <td colSpan={3} className="px-6 py-12 text-center text-gray-400">
                                         まだ登録されていません
                                     </td>
                                 </tr>
