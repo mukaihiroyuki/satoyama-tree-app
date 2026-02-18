@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import ShipmentDialog from '@/components/ShipmentDialog'
+import ReservationDialog from '@/components/ReservationDialog'
 import { useTrees } from '@/hooks/useTrees'
 
 const statusLabels: Record<string, { label: string; color: string }> = {
@@ -23,6 +24,7 @@ export default function TreesPage() {
     // 選択状態
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [isShipmentDialogOpen, setIsShipmentDialogOpen] = useState(false)
+    const [isReservationDialogOpen, setIsReservationDialogOpen] = useState(false)
 
     // 成功時のリフレッシュ
     const handleShipmentSuccess = () => {
@@ -331,7 +333,7 @@ export default function TreesPage() {
                     </div>
                     <div className="flex gap-2 sm:gap-4 overflow-x-auto w-full sm:w-auto justify-center">
                         <button
-                            onClick={() => alert(`機能開発中: ${selectedIds.length}本を予約する`)}
+                            onClick={() => setIsReservationDialogOpen(true)}
                             className="bg-yellow-600 hover:bg-yellow-700 px-4 sm:px-6 py-2 rounded-xl font-bold transition-all active:scale-95 whitespace-nowrap text-sm sm:text-base"
                         >
                             予約
@@ -351,6 +353,15 @@ export default function TreesPage() {
                     </div>
                 </div>
             )}
+
+            {/* 予約ダイアログ */}
+            <ReservationDialog
+                isOpen={isReservationDialogOpen}
+                onClose={() => setIsReservationDialogOpen(false)}
+                selectedIds={selectedIds}
+                selectedTrees={selectedTreesData}
+                onSuccess={handleShipmentSuccess}
+            />
 
             {/* 出荷ダイアログ */}
             <ShipmentDialog
