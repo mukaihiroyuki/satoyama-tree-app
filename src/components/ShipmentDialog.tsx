@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 interface Client {
     id: string
     name: string
+    default_rate: number | null
 }
 
 interface ShipmentDialogProps {
@@ -21,6 +22,7 @@ export default function ShipmentDialog({ isOpen, onClose, selectedIds, selectedT
     const [selectedClientId, setSelectedClientId] = useState('')
     const [shippedAt, setShippedAt] = useState(new Date().toISOString().split('T')[0])
     const [notes, setNotes] = useState('')
+    const [rate, setRate] = useState(1)
     const [loading, setLoading] = useState(false)
     const [isAddingClient, setIsAddingClient] = useState(false)
     const [newClientName, setNewClientName] = useState('')
@@ -28,10 +30,11 @@ export default function ShipmentDialog({ isOpen, onClose, selectedIds, selectedT
     useEffect(() => {
         async function fetchClients() {
             const supabase = createClient()
-            const { data } = await supabase.from('clients').select('id, name').order('name')
+            const { data } = await supabase.from('clients').select('id, name, default_rate').order('name')
             setClients(data || [])
             if (data && data.length > 0 && !selectedClientId) {
                 setSelectedClientId(data[0].id)
+                setRate(data[0].default_rate ?? 1)
             }
         }
         if (isOpen) {
@@ -44,8 +47,9 @@ export default function ShipmentDialog({ isOpen, onClose, selectedIds, selectedT
         const supabase = createClient()
         const { data } = await supabase.from('clients').insert({ name: newClientName }).select().single()
         if (data) {
-            setClients(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
+            setClients(prev => [...prev, { ...data, default_rate: null }].sort((a, b) => a.name.localeCompare(b.name)))
             setSelectedClientId(data.id)
+            setRate(1)
             setNewClientName('')
             setIsAddingClient(false)
         }
@@ -79,7 +83,7 @@ export default function ShipmentDialog({ isOpen, onClose, selectedIds, selectedT
             const items = selectedTrees.map(tree => ({
                 shipment_id: shipment.id,
                 tree_id: tree.id,
-                unit_price: tree.price // 現在の価格を出荷時の単価として記録
+                unit_price: Math.round(tree.price * rate) // 上代 × 掛け率 = 出荷単価
             }))
 
             const { error: itemsError } = await supabase.from('shipment_items').insert(items)
@@ -146,7 +150,11 @@ export default function ShipmentDialog({ isOpen, onClose, selectedIds, selectedT
                         ) : (
                             <select
                                 value={selectedClientId}
-                                onChange={(e) => setSelectedClientId(e.target.value)}
+                                onChange={(e) => {
+                                    setSelectedClientId(e.target.value)
+                                    const selected = clients.find(c => c.id === e.target.value)
+                                    setRate(selected?.default_rate ?? 1)
+                                }}
                                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 outline-none"
                             >
                                 <option value="" disabled>選択してください</option>
@@ -155,6 +163,23 @@ export default function ShipmentDialog({ isOpen, onClose, selectedIds, selectedT
                                 ))}
                             </select>
                         )}
+                    </div>
+
+                    {/* 掛け率 */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">掛け率</label>
+                        <input
+                            type="number"
+                            value={rate}
+                            onChange={(e) => setRate(parseFloat(e.target.value) || 0)}
+                            step="0.01"
+                            min="0"
+                            max="1"
+                            className="w-32 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 outline-none"
+                        />
+                        <span className="ml-2 text-sm text-gray-500">
+                            {rate < 1 ? `${Math.round(rate * 100)}%（${Math.round(rate * 10)}掛け）` : '掛け率なし（上代そのまま）'}
+                        </span>
                     </div>
 
                     {/* 出荷日 */}
@@ -183,19 +208,29 @@ export default function ShipmentDialog({ isOpen, onClose, selectedIds, selectedT
                     <div className="bg-gray-50 rounded-xl p-4">
                         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">出荷対象明細</p>
                         <ul className="text-sm space-y-1">
-                            {selectedTrees.slice(0, 5).map(tree => (
-                                <li key={tree.id} className="flex justify-between">
-                                    <span className="text-gray-600">{tree.management_number || '-'} {tree.species_name}</span>
-                                    <span className="font-mono">¥{tree.price.toLocaleString()}</span>
-                                </li>
-                            ))}
+                            {selectedTrees.slice(0, 5).map(tree => {
+                                const unitPrice = Math.round(tree.price * rate)
+                                return (
+                                    <li key={tree.id} className="flex justify-between items-center">
+                                        <span className="text-gray-600">{tree.management_number || '-'} {tree.species_name}</span>
+                                        {rate < 1 ? (
+                                            <span className="font-mono text-right">
+                                                <span className="text-gray-400 line-through text-xs mr-1">¥{tree.price.toLocaleString()}</span>
+                                                <span>¥{unitPrice.toLocaleString()}</span>
+                                            </span>
+                                        ) : (
+                                            <span className="font-mono">¥{tree.price.toLocaleString()}</span>
+                                        )}
+                                    </li>
+                                )
+                            })}
                             {selectedTrees.length > 5 && (
                                 <li className="text-center text-gray-400 text-xs pt-1">他 {selectedTrees.length - 5} 本...</li>
                             )}
                         </ul>
                         <div className="border-t border-gray-200 mt-2 pt-2 flex justify-between font-bold text-gray-800">
                             <span>合計金額</span>
-                            <span>¥{selectedTrees.reduce((sum, t) => sum + t.price, 0).toLocaleString()}</span>
+                            <span>¥{selectedTrees.reduce((sum, t) => sum + Math.round(t.price * rate), 0).toLocaleString()}</span>
                         </div>
                     </div>
                 </div>

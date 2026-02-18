@@ -10,6 +10,7 @@ interface Client {
     tel: string | null
     address: string | null
     notes: string | null
+    default_rate: number | null
 }
 
 export default function ClientsPage() {
@@ -18,8 +19,11 @@ export default function ClientsPage() {
     const [name, setName] = useState('')
     const [address, setAddress] = useState('')
     const [notes, setNotes] = useState('')
+    const [defaultRate, setDefaultRate] = useState('')
     const [submitting, setSubmitting] = useState(false)
     const [deleting, setDeleting] = useState<string | null>(null)
+    const [editingRateId, setEditingRateId] = useState<string | null>(null)
+    const [editingRateValue, setEditingRateValue] = useState('')
 
     const fetchClients = async () => {
         const supabase = createClient()
@@ -43,12 +47,14 @@ export default function ClientsPage() {
         setSubmitting(true)
 
         const supabase = createClient()
+        const parsedRate = defaultRate.trim() ? parseFloat(defaultRate) : null
         const { error } = await supabase
             .from('clients')
             .insert({
                 name: name.trim(),
                 address: address.trim() || null,
                 notes: notes.trim() || null,
+                default_rate: parsedRate,
             })
 
         if (error) {
@@ -57,6 +63,7 @@ export default function ClientsPage() {
             setName('')
             setAddress('')
             setNotes('')
+            setDefaultRate('')
             await fetchClients()
         }
         setSubmitting(false)
@@ -78,6 +85,27 @@ export default function ClientsPage() {
             await fetchClients()
         }
         setDeleting(null)
+    }
+
+    const handleRateUpdate = async (clientId: string) => {
+        const parsedRate = editingRateValue.trim() ? parseFloat(editingRateValue) : null
+        const supabase = createClient()
+        const { error } = await supabase
+            .from('clients')
+            .update({ default_rate: parsedRate })
+            .eq('id', clientId)
+
+        if (error) {
+            alert('掛け率の更新に失敗しました: ' + error.message)
+        } else {
+            await fetchClients()
+        }
+        setEditingRateId(null)
+    }
+
+    const formatRate = (rate: number | null) => {
+        if (rate === null || rate === 1) return '-'
+        return `${Math.round(rate * 100)}%`
     }
 
     if (loading) return <div className="p-8">読み込み中...</div>
@@ -123,6 +151,16 @@ export default function ClientsPage() {
                                 onChange={(e) => setNotes(e.target.value)}
                                 className="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                             />
+                            <input
+                                type="number"
+                                placeholder="掛け率（例: 0.70）"
+                                value={defaultRate}
+                                onChange={(e) => setDefaultRate(e.target.value)}
+                                step="0.01"
+                                min="0"
+                                max="1"
+                                className="w-40 border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                            />
                             <button
                                 type="submit"
                                 disabled={submitting || !name.trim()}
@@ -141,6 +179,7 @@ export default function ClientsPage() {
                             <tr>
                                 <th className="px-6 py-4 text-sm font-bold text-gray-600">名前</th>
                                 <th className="px-6 py-4 text-sm font-bold text-gray-600">住所・備考</th>
+                                <th className="px-6 py-4 text-sm font-bold text-gray-600">掛け率</th>
                                 <th className="px-6 py-4 text-sm font-bold text-gray-600">操作</th>
                             </tr>
                         </thead>
@@ -151,6 +190,43 @@ export default function ClientsPage() {
                                     <td className="px-6 py-4 text-sm text-gray-500">
                                         <div>{c.address || '-'}</div>
                                         <div className="text-xs text-gray-400 mt-1">{c.notes}</div>
+                                    </td>
+                                    <td className="px-6 py-4 text-sm">
+                                        {editingRateId === c.id ? (
+                                            <div className="flex items-center gap-1">
+                                                <input
+                                                    type="number"
+                                                    value={editingRateValue}
+                                                    onChange={(e) => setEditingRateValue(e.target.value)}
+                                                    step="0.01"
+                                                    min="0"
+                                                    max="1"
+                                                    className="w-20 border border-green-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                                                    autoFocus
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') handleRateUpdate(c.id)
+                                                        if (e.key === 'Escape') setEditingRateId(null)
+                                                    }}
+                                                />
+                                                <button
+                                                    onClick={() => handleRateUpdate(c.id)}
+                                                    className="text-green-600 hover:text-green-700 text-xs font-bold"
+                                                >
+                                                    保存
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                onClick={() => {
+                                                    setEditingRateId(c.id)
+                                                    setEditingRateValue(c.default_rate !== null && c.default_rate !== 1 ? String(c.default_rate) : '')
+                                                }}
+                                                className="text-gray-600 hover:text-green-600 cursor-pointer"
+                                                title="クリックして編集"
+                                            >
+                                                {formatRate(c.default_rate)}
+                                            </button>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4">
                                         <button
@@ -165,7 +241,7 @@ export default function ClientsPage() {
                             ))}
                             {clients.length === 0 && (
                                 <tr>
-                                    <td colSpan={3} className="px-6 py-12 text-center text-gray-400">
+                                    <td colSpan={4} className="px-6 py-12 text-center text-gray-400">
                                         まだ登録されていません
                                     </td>
                                 </tr>
