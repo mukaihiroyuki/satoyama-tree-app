@@ -70,15 +70,9 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
 
         // ファイル検証
         const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp']
-        const maxFileSize = 5 * 1024 * 1024 // 5MB
 
         if (!allowedMimeTypes.includes(file.type)) {
             alert('PNG, JPEG, WebP形式の画像のみ対応しています')
-            return
-        }
-
-        if (file.size > maxFileSize) {
-            alert('5MB以下のファイルをアップロードしてください')
             return
         }
 
