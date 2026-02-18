@@ -116,6 +116,12 @@ export default async function Home() {
             📦 出荷履歴を見る →
           </Link>
           <Link
+            href="/species"
+            className="text-sm font-bold text-green-700 hover:text-green-900 flex items-center gap-1 opacity-70 hover:opacity-100 transition-all"
+          >
+            🌲 樹種マスター →
+          </Link>
+          <Link
             href="/clients"
             className="text-sm font-bold text-green-700 hover:text-green-900 flex items-center gap-1 opacity-70 hover:opacity-100 transition-all"
           >
@@ -125,9 +131,17 @@ export default async function Home() {
 
         {/* 樹種マスター確認 */}
         <div className="bg-white rounded-xl shadow-lg p-6">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">
-            📌 登録済み樹種 ({species.length}種)
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-gray-800">
+              📌 登録済み樹種 ({species.length}種)
+            </h2>
+            <Link
+              href="/species"
+              className="text-sm font-bold text-green-600 hover:text-green-800 transition-colors"
+            >
+              管理画面 →
+            </Link>
+          </div>
           <div className="flex flex-wrap gap-2">
             {species.map((s) => (
               <span
