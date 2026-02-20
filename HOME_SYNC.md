@@ -4,16 +4,17 @@
 > **自宅PCで開く時の合言葉：**
 > 「`HOME_SYNC.md` を読んで現状を把握して」
 
-## 📍 現在地 (2026-02-19 更新)
+## 📍 現在地 (2026-02-20 更新)
 - **Phase 2 完遂**: QR生成・スキャン・PWA・写真同期・CSV出力がすべて稼働。
 - **Bluetooth印刷 完成**: Brother RJ-4250WB + Smooth Print URL scheme で現場印刷が動作。
 - **オフライン編集対応 完成**: IndexedDB (Dexie.js) によるキャッシュ層を実装。電波のない現場でも閲覧・編集可能。
+- **オフラインキャッシュ自動準備**: ダッシュボード表示時にOfflineCacheWarmerが全データをIndexedDBに先読み。「✅ オフライン準備OK」確認後に山へ出発する運用。
 - **QRスキャナー刷新済み**: html5-qrcode → getUserMedia + BarcodeDetector/jsQR。iOS PWAで安定動作。
 - **ラベルAPI動的生成**: .lbxテンプレートをAPI側でQRサイズ・位置・セル粒度を動的書き換え。
 - **出荷管理強化済み**: 出荷詳細ページ（樹種別集計）、詳細ページからの個別出荷フロー完備。
 - **tree_number廃止済み**: 管理番号(management_number)に完全統一。UI・型定義・オフラインDB・CSV全箇所から除去。
 - **樹種マスター管理ページ新設**: `/species` で事前に樹種を追加・コード編集が可能に。
-- **Blackview FORT1 動作検証完了**: Android 15 + Chrome PWA + Smooth Print APK + Brother RJ-4250WB Bluetooth印刷、すべて正常動作確認済み。
+- **Blackview FORT1 動作検証完了**: Android 15（Wi-Fi専用・SIMなし）+ Chrome PWA + Smooth Print APK + Brother RJ-4250WB Bluetooth印刷、すべて正常動作確認済み。
 - **Vercel デプロイ済み**: [satoyama-tree-app.vercel.app](https://satoyama-tree-app.vercel.app)
 
 ## 📂 重要ファイル
@@ -23,6 +24,7 @@
 - `src/lib/tree-repository.ts`: データアクセス層（Supabase ↔ IndexedDB）
 - `src/hooks/useTree.ts`, `useTrees.ts`, `useOnlineStatus.ts`: オフライン対応カスタムフック
 - `src/components/TreeEditForm.tsx`: 樹木編集フォーム（オフライン保存対応）
+- `src/components/OfflineCacheWarmer.tsx`: ダッシュボード用オフラインキャッシュ自動準備
 - `src/lib/smoothprint.ts`: Bluetooth印刷 URL scheme ビルダー（キャッシュバスター付き）
 - `src/app/api/label/[id]/route.ts`: QRコード埋め込み .lbx 動的生成API（replacePositionByObjectName）
 - `src/app/scan/page.tsx`: QRスキャナー（BarcodeDetector + jsQRフォールバック）
@@ -35,8 +37,11 @@
 
 ## ✅ 見送り・運用で対応
 - **新規登録のオフライン対応**: 現場での新規登録頻度が低いため開発しない。現場ではメモ帳に記録し、事務所でオンライン登録する運用とする
+- **クライアント・出荷履歴のオフライン対応**: 現場で必要になった時に対応する。同じパターン（IndexedDBキャッシュ層追加）で実装可能
 
 ## 💬 申し送り
+2026-02-20: FORT1（Wi-Fi専用・SIMなし）が山（電波圏外）で樹種選択できない問題を修正。原因: `/trees/new`が`tree-repository.ts`のキャッシュ対応関数を使わずSupabaseに直接問い合わせていた。修正: (1) `getAllSpecies()`に差し替え（IndexedDBフォールバック対応）、(2) ダッシュボードにOfflineCacheWarmer追加（アプリ起動時に全データを自動キャッシュ、「✅ オフライン準備OK」表示）。運用: 事務所Wi-Fiでアプリ開く→「✅」確認→山へ。なお、クライアント管理・出荷履歴はまだオフライン未対応（必要になったら同パターンで追加可能）。
+
 2026-02-19: Blackview FORT1（Android 15）セットアップ完了。PWA（Chrome）インストール・ログイン→Smooth Print APK手動インストール（Brother開発者サイトからZIPダウンロード→解凍→APKインストール）→Brother RJ-4250WBとBluetoothペアリング→PWAからのラベル印刷テスト、すべて成功。注意点：Android版Smooth PrintはGoogle Play非公開、Brother開発者サイト（online.brother.co.jp）でユーザー登録してAPKダウンロードが必要。Bluetooth接続時、iPhoneが先にプリンターを掴んでいると接続できない（iPhone側Bluetoothオフで解決、ペアリング自体は複数台共存可能）。
 
 2026-02-18: tree_number廃止を完了（management_numberに統一）。樹種マスター管理ページ(`/species`)を新設し、事務所での事前登録が可能に。ダッシュボードにナビリンク追加。ラベル行間問題は2/17に解決済み。Vercelデプロイ確認済み。
