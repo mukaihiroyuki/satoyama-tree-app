@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { getAllSpecies } from '@/lib/tree-repository'
 
 interface Species {
     id: string
@@ -29,22 +30,13 @@ export default function NewTreePage() {
         location: '',
     })
 
-    // 樹種一覧を取得
+    // 樹種一覧を取得（オフライン時はIndexedDBキャッシュから）
     useEffect(() => {
-        async function fetchSpecies() {
-            const supabase = createClient()
-            const { data, error } = await supabase
-                .from('species_master')
-                .select('id, name, code')
-                .order('name_kana')
-
-            if (error) {
-                console.error('Error:', error)
-                return
-            }
-            setSpecies(data || [])
-        }
-        fetchSpecies()
+        getAllSpecies().then(data => {
+            setSpecies(data.map(s => ({ id: s.id, name: s.name, code: s.code })))
+        }).catch(err => {
+            console.error('Error fetching species:', err)
+        })
     }, [])
 
     // クイック選択のヘルパー

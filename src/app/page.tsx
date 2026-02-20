@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import OfflineCacheWarmer from '@/components/OfflineCacheWarmer'
 
 // 樹木の統計情報を取得
 async function getTreeStats() {
@@ -59,6 +60,9 @@ export default async function Home() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
+        {/* オフラインキャッシュ準備 */}
+        <OfflineCacheWarmer />
+
         {/* 統計カード */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <StatCard
