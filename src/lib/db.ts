@@ -4,6 +4,7 @@ import Dexie, { type EntityTable } from 'dexie'
 export interface CachedTree {
     id: string
     species_id: string
+    client_id: string | null
     height: number
     trunk_count: number
     price: number
@@ -19,6 +20,10 @@ export interface CachedTree {
         id: string
         name: string
     }
+    client: {
+        id: string
+        name: string
+    } | null
 }
 
 // 樹種マスタのキャッシュ

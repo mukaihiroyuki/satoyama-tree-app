@@ -12,7 +12,7 @@ export async function getAllTrees(): Promise<CachedTree[]> {
             const supabase = createClient()
             const { data, error } = await supabase
                 .from('trees')
-                .select('*, species:species_master(id, name)')
+                .select('*, species:species_master(id, name), client:clients(id, name)')
                 .order('created_at', { ascending: false })
 
             if (!error && data) {
@@ -41,7 +41,7 @@ export async function getTree(id: string): Promise<CachedTree | null> {
             const supabase = createClient()
             const { data, error } = await supabase
                 .from('trees')
-                .select('*, species:species_master(id, name)')
+                .select('*, species:species_master(id, name), client:clients(id, name)')
                 .eq('id', id)
                 .single()
 

@@ -66,7 +66,7 @@ export default function TreesPage() {
 
     // CSVダウンロード機能
     const downloadCSV = () => {
-        const headers = ["管理番号", "樹種", "樹高(m)", "本立ち", "上代(円)", "状態", "場所", "入荷日", "備考"]
+        const headers = ["管理番号", "樹種", "樹高(m)", "本立ち", "上代(円)", "状態", "場所", "クライアント", "入荷日", "備考"]
         const rows = filteredTrees.map(t => [
             t.management_number || '-',
             t.species?.name || '-',
@@ -75,6 +75,7 @@ export default function TreesPage() {
             t.price,
             statusLabels[t.status]?.label || t.status,
             t.location || '-',
+            t.client?.name || '',
             t.arrived_at,
             t.notes || ''
         ])
@@ -259,6 +260,8 @@ export default function TreesPage() {
                                         <th className="px-4 py-3 text-sm font-semibold text-green-800">上代</th>
                                         <th className="px-4 py-3 text-sm font-semibold text-green-800">状態</th>
                                         <th className="px-4 py-3 text-sm font-semibold text-green-800">場所</th>
+                                        <th className="px-4 py-3 text-sm font-semibold text-green-800">クライアント</th>
+                                        <th className="px-4 py-3 text-sm font-semibold text-green-800">備考</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
@@ -298,6 +301,12 @@ export default function TreesPage() {
                                             </td>
                                             <td className="px-4 py-3 text-gray-600 text-sm">
                                                 {tree.location || '-'}
+                                            </td>
+                                            <td className="px-4 py-3 text-gray-600 text-sm">
+                                                {tree.client?.name || '-'}
+                                            </td>
+                                            <td className="px-4 py-3 text-gray-500 text-sm max-w-[200px] truncate">
+                                                {tree.notes || '-'}
                                             </td>
                                         </tr>
                                     ))}
