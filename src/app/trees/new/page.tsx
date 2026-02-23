@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { getAllSpecies } from '@/lib/tree-repository'
+import { getAllSpecies, registerTreeOffline } from '@/lib/tree-repository'
 
 interface Species {
     id: string
@@ -59,83 +59,117 @@ export default function NewTreePage() {
         setLoading(true)
         setError(null)
 
-        const supabase = createClient()
         let finalSpeciesId = formData.species_id
-
-        // 新規樹種の場合：まずマスターに追加
-        if (isNewSpecies && newSpeciesName) {
-            const { data: newSpecies, error: speciesError } = await supabase
-                .from('species_master')
-                .insert({ name: newSpeciesName })
-                .select()
-                .single()
-
-            if (speciesError) {
-                setError('樹種の登録に失敗しました: ' + speciesError.message)
-                setLoading(false)
-                return
-            }
-            finalSpeciesId = newSpecies.id
-        }
-
-        if (!finalSpeciesId) {
-            setError('樹種を選択、または新規入力してください')
-            setLoading(false)
-            return
-        }
-
-        // 管理番号を自動生成
-        let managementNumber: string | null = null
         const selectedSpecies = isNewSpecies
             ? null
             : species.find(s => s.id === finalSpeciesId)
-        const speciesCode = selectedSpecies?.code
 
-        if (speciesCode) {
-            const year = new Date().getFullYear().toString().slice(-2) // "26"
-            const prefix = `${year}-${speciesCode}-`
+        // オンライン時：従来通りSupabaseに直接登録
+        if (navigator.onLine) {
+            try {
+                const supabase = createClient()
 
-            // 今年のこの樹種の最大番号を取得
-            const { data: maxTree } = await supabase
-                .from('trees')
-                .select('management_number')
-                .like('management_number', `${prefix}%`)
-                .order('management_number', { ascending: false })
-                .limit(1)
-                .single()
+                // 新規樹種の場合：まずマスターに追加
+                if (isNewSpecies && newSpeciesName) {
+                    const { data: newSpecies, error: speciesError } = await supabase
+                        .from('species_master')
+                        .insert({ name: newSpeciesName })
+                        .select()
+                        .single()
 
-            // 次の番号を計算
-            const nextNumber = maxTree?.management_number
-                ? parseInt(maxTree.management_number.split('-')[2]) + 1
-                : 1
+                    if (speciesError) {
+                        setError('樹種の登録に失敗しました: ' + speciesError.message)
+                        setLoading(false)
+                        return
+                    }
+                    finalSpeciesId = newSpecies.id
+                }
 
-            managementNumber = `${prefix}${nextNumber.toString().padStart(4, '0')}`
+                if (!finalSpeciesId) {
+                    setError('樹種を選択、または新規入力してください')
+                    setLoading(false)
+                    return
+                }
+
+                // 管理番号を自動生成
+                let managementNumber: string | null = null
+                const speciesCode = selectedSpecies?.code
+
+                if (speciesCode) {
+                    const year = new Date().getFullYear().toString().slice(-2)
+                    const prefix = `${year}-${speciesCode}-`
+
+                    const { data: maxTree } = await supabase
+                        .from('trees')
+                        .select('management_number')
+                        .like('management_number', `${prefix}%`)
+                        .order('management_number', { ascending: false })
+                        .limit(1)
+                        .single()
+
+                    const nextNumber = maxTree?.management_number
+                        ? parseInt(maxTree.management_number.split('-')[2]) + 1
+                        : 1
+                    managementNumber = `${prefix}${nextNumber.toString().padStart(4, '0')}`
+                }
+
+                const { data: newTree, error } = await supabase
+                    .from('trees')
+                    .insert({
+                        species_id: finalSpeciesId,
+                        height: parseFloat(formData.height),
+                        trunk_count: parseInt(formData.trunk_count),
+                        price: parseInt(formData.price),
+                        notes: formData.notes || null,
+                        location: formData.location || null,
+                        management_number: managementNumber,
+                    })
+                    .select()
+                    .single()
+
+                if (error) {
+                    console.error('Error:', error)
+                    setError('登録に失敗しました: ' + error.message)
+                    setLoading(false)
+                    return
+                }
+
+                router.replace(`/trees/${newTree.id}`)
+                return
+            } catch {
+                // ネットワークエラー → オフライン登録へフォールスルー
+            }
         }
 
-        const { data: newTree, error } = await supabase
-            .from('trees')
-            .insert({
-                species_id: finalSpeciesId,
-                height: parseFloat(formData.height),
-                trunk_count: parseInt(formData.trunk_count),
-                price: parseInt(formData.price),
-                notes: formData.notes || null,
-                location: formData.location || null,
-                management_number: managementNumber,
-            })
-            .select()
-            .single()
-
-        if (error) {
-            console.error('Error:', error)
-            setError('登録に失敗しました: ' + error.message)
+        // オフライン時：IndexedDBに仮保存
+        if (!finalSpeciesId) {
+            setError('樹種を選択してください（オフライン時は新規樹種を追加できません）')
             setLoading(false)
             return
         }
 
-        // 成功したらその樹木の詳細ページへ（即印刷できるように）
-        // replace: ブラウザバックで入力済みフォームに戻らないようにする
-        router.replace(`/trees/${newTree.id}`)
+        if (isNewSpecies) {
+            setError('オフライン時は新規樹種を追加できません。既存の樹種から選んでください。')
+            setLoading(false)
+            return
+        }
+
+        const tempId = crypto.randomUUID()
+        await registerTreeOffline({
+            temp_id: tempId,
+            species_id: finalSpeciesId,
+            species_name: selectedSpecies?.name || '不明',
+            species_code: selectedSpecies?.code || null,
+            height: parseFloat(formData.height),
+            trunk_count: parseInt(formData.trunk_count),
+            price: parseInt(formData.price),
+            notes: formData.notes || null,
+            location: formData.location || null,
+            created_at: new Date().toISOString(),
+        })
+
+        // 一覧に戻る（管理番号は電波復帰後に採番される）
+        router.replace('/trees')
     }
 
     return (
@@ -330,6 +364,11 @@ export default function NewTreePage() {
                     >
                         {loading ? '登録中...' : '✅ 登録してラベルを出す'}
                     </button>
+                    {!navigator.onLine && (
+                        <p className="text-sm text-yellow-700 bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-2 text-center font-bold">
+                            ⚡ オフライン中 — 登録データは端末に保存され、電波復帰後に自動同期されます
+                        </p>
+                    )}
                 </form>
             </main>
         </div>

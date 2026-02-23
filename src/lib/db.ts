@@ -46,16 +46,40 @@ export interface PendingEdit {
     synced: 0 | 1  // IndexedDBではbooleanの代わりに0/1
 }
 
+// 未同期の新規登録キュー
+export interface PendingRegistration {
+    id?: number  // auto-increment
+    temp_id: string  // 仮ID（UUID）
+    species_id: string
+    species_name: string  // 表示用
+    species_code: string | null  // 管理番号採番用
+    height: number
+    trunk_count: number
+    price: number
+    notes: string | null
+    location: string | null
+    created_at: string
+    synced: 0 | 1
+}
+
 const db = new Dexie('SatoyamaOfflineDB') as Dexie & {
     trees: EntityTable<CachedTree, 'id'>
     species: EntityTable<CachedSpecies, 'id'>
     pendingEdits: EntityTable<PendingEdit, 'id'>
+    pendingRegistrations: EntityTable<PendingRegistration, 'id'>
 }
 
 db.version(2).stores({
     trees: 'id, management_number, status, location',
     species: 'id, name',
     pendingEdits: '++id, tree_id, synced',
+})
+
+db.version(3).stores({
+    trees: 'id, management_number, status, location',
+    species: 'id, name',
+    pendingEdits: '++id, tree_id, synced',
+    pendingRegistrations: '++id, temp_id, synced',
 })
 
 export { db }

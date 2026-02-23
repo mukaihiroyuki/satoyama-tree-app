@@ -1,4 +1,4 @@
-import { db, type CachedTree, type CachedSpecies } from './db'
+import { db, type CachedTree, type CachedSpecies, type PendingRegistration } from './db'
 import { createClient } from './supabase/client'
 
 export type TreeUpdate = Record<string, string | number | null>
@@ -31,7 +31,9 @@ export async function getAllTrees(): Promise<CachedTree[]> {
     // オフラインまたはエラー時: キャッシュから返却
     const cached = await db.trees.orderBy('created_at').reverse().toArray()
     // 未同期の編集を反映
-    return applyPendingEditsToList(cached)
+    const withEdits = await applyPendingEditsToList(cached)
+    // 未同期の新規登録も一覧に含める
+    return mergePendingRegistrations(withEdits)
 }
 
 // ------------------------------------------------------------------
@@ -140,12 +142,18 @@ export async function saveEdit(
 // 未同期編集の同期
 // ------------------------------------------------------------------
 export async function syncPendingEdits(): Promise<number> {
+    let totalSynced = 0
+
+    // 1. 未同期の新規登録を先に同期
+    totalSynced += await syncPendingRegistrations()
+
+    // 2. 未同期の編集を同期
     const pending = await db.pendingEdits
         .where('synced')
         .equals(0)
         .toArray()
 
-    if (pending.length === 0) return 0
+    if (pending.length === 0) return totalSynced
 
     // tree_idごとにまとめる
     const grouped = new Map<string, TreeUpdate>()
@@ -180,14 +188,16 @@ export async function syncPendingEdits(): Promise<number> {
         await db.pendingEdits.where('synced').equals(0).delete()
     }
 
-    return syncedCount
+    return totalSynced + syncedCount
 }
 
 // ------------------------------------------------------------------
-// 未同期件数
+// 未同期件数（編集 + 新規登録）
 // ------------------------------------------------------------------
 export async function getPendingEditCount(): Promise<number> {
-    return db.pendingEdits.where('synced').equals(0).count()
+    const edits = await db.pendingEdits.where('synced').equals(0).count()
+    const regs = await db.pendingRegistrations.where('synced').equals(0).count()
+    return edits + regs
 }
 
 // ------------------------------------------------------------------
@@ -229,6 +239,168 @@ async function applyPendingEditsToList(trees: CachedTree[]): Promise<CachedTree[
         if (!patches) return tree
         return { ...tree, ...patches } as CachedTree
     })
+}
+
+// ------------------------------------------------------------------
+// オフライン新規登録
+// ------------------------------------------------------------------
+export async function registerTreeOffline(reg: Omit<PendingRegistration, 'id' | 'synced'>): Promise<string> {
+    // pendingRegistrationsに保存
+    await db.pendingRegistrations.add({ ...reg, synced: 0 })
+
+    // 一覧表示用にキャッシュにも仮データを入れる
+    const now = new Date().toISOString()
+    const cachedTree: CachedTree = {
+        id: reg.temp_id,
+        species_id: reg.species_id,
+        client_id: null,
+        height: reg.height,
+        trunk_count: reg.trunk_count,
+        price: reg.price,
+        status: 'in_stock',
+        notes: reg.notes,
+        shipped_at: null,
+        estimate_number: null,
+        photo_url: null,
+        location: reg.location,
+        management_number: null,  // 電波復帰後に採番
+        arrived_at: now.split('T')[0],
+        created_at: now,
+        updated_at: now,
+        species: { id: reg.species_id, name: reg.species_name },
+        client: null,
+    }
+    await db.trees.put(cachedTree)
+
+    return reg.temp_id
+}
+
+// ------------------------------------------------------------------
+// 未同期の新規登録を同期
+// ------------------------------------------------------------------
+async function syncPendingRegistrations(): Promise<number> {
+    const pending = await db.pendingRegistrations
+        .where('synced')
+        .equals(0)
+        .toArray()
+
+    if (pending.length === 0) return 0
+
+    const supabase = createClient()
+    let syncedCount = 0
+
+    for (const reg of pending) {
+        try {
+            // 管理番号を採番
+            let managementNumber: string | null = null
+            if (reg.species_code) {
+                const year = new Date(reg.created_at).getFullYear().toString().slice(-2)
+                const prefix = `${year}-${reg.species_code}-`
+
+                const { data: maxTree } = await supabase
+                    .from('trees')
+                    .select('management_number')
+                    .like('management_number', `${prefix}%`)
+                    .order('management_number', { ascending: false })
+                    .limit(1)
+                    .single()
+
+                const nextNumber = maxTree?.management_number
+                    ? parseInt(maxTree.management_number.split('-')[2]) + 1
+                    : 1
+                managementNumber = `${prefix}${nextNumber.toString().padStart(4, '0')}`
+            }
+
+            // Supabaseにinsert
+            const { data: newTree, error } = await supabase
+                .from('trees')
+                .insert({
+                    species_id: reg.species_id,
+                    height: reg.height,
+                    trunk_count: reg.trunk_count,
+                    price: reg.price,
+                    notes: reg.notes,
+                    location: reg.location,
+                    management_number: managementNumber,
+                })
+                .select()
+                .single()
+
+            if (error) {
+                console.error(`Sync registration failed:`, error)
+                continue
+            }
+
+            // キャッシュの仮データを本物のIDで差し替え
+            await db.trees.delete(reg.temp_id)
+            if (newTree) {
+                const species = await db.species.get(reg.species_id)
+                await db.trees.put({
+                    ...newTree,
+                    shipped_at: null,
+                    species: species ? { id: species.id, name: species.name } : { id: reg.species_id, name: reg.species_name },
+                    client: null,
+                } as CachedTree)
+            }
+
+            // 同期済みとしてマーク
+            if (reg.id !== undefined) {
+                await db.pendingRegistrations.update(reg.id, { synced: 1 })
+            }
+            syncedCount++
+        } catch (err) {
+            console.error(`Sync registration error:`, err)
+        }
+    }
+
+    // 全部成功したら削除
+    if (syncedCount === pending.length) {
+        await db.pendingRegistrations.where('synced').equals(1).delete()
+    }
+
+    return syncedCount
+}
+
+// ------------------------------------------------------------------
+// ヘルパー: 未同期の新規登録を一覧に含める
+// ------------------------------------------------------------------
+async function mergePendingRegistrations(trees: CachedTree[]): Promise<CachedTree[]> {
+    const pending = await db.pendingRegistrations
+        .where('synced')
+        .equals(0)
+        .toArray()
+
+    if (pending.length === 0) return trees
+
+    // 既にキャッシュに入っている仮IDは除外（重複防止）
+    const existingIds = new Set(trees.map(t => t.id))
+    const newTrees: CachedTree[] = []
+
+    for (const reg of pending) {
+        if (existingIds.has(reg.temp_id)) continue
+        newTrees.push({
+            id: reg.temp_id,
+            species_id: reg.species_id,
+            client_id: null,
+            height: reg.height,
+            trunk_count: reg.trunk_count,
+            price: reg.price,
+            status: 'in_stock',
+            notes: reg.notes,
+            shipped_at: null,
+            estimate_number: null,
+            photo_url: null,
+            location: reg.location,
+            management_number: null,
+            arrived_at: reg.created_at.split('T')[0],
+            created_at: reg.created_at,
+            updated_at: reg.created_at,
+            species: { id: reg.species_id, name: reg.species_name },
+            client: null,
+        })
+    }
+
+    return [...newTrees, ...trees]
 }
 
 // ------------------------------------------------------------------

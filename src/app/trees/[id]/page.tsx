@@ -9,6 +9,7 @@ import PrintLabel from '@/components/PrintLabel'
 import TreeEditForm from '@/components/TreeEditForm'
 import { buildSmoothPrintUrl, type TreeLabelData } from '@/lib/smoothprint'
 import ShipmentDialog from '@/components/ShipmentDialog'
+import ReservationDialog from '@/components/ReservationDialog'
 import { useTree } from '@/hooks/useTree'
 
 const statusLabels: Record<string, { label: string; color: string }> = {
@@ -25,6 +26,7 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
     const { tree, loading, isOnline, saveEdit, saveMessage, refreshData } = useTree(id)
     const [uploading, setUploading] = useState(false)
     const [isShipmentDialogOpen, setIsShipmentDialogOpen] = useState(false)
+    const [isReservationDialogOpen, setIsReservationDialogOpen] = useState(false)
     const [printLayout, setPrintLayout] = useState<'RJ-100' | 'PT-36' | 'PT-24'>('PT-36')
     const [printMode, setPrintMode] = useState<'airprint' | 'bluetooth'>(() => {
         if (typeof window !== 'undefined') {
@@ -132,6 +134,10 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
         if (!tree) return
         if (newStatus === 'shipped') {
             setIsShipmentDialogOpen(true)
+            return
+        }
+        if (newStatus === 'reserved') {
+            setIsReservationDialogOpen(true)
             return
         }
         await saveEdit({ status: newStatus })
@@ -343,6 +349,20 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
                     </button>
                 )}
             </main>
+
+            {/* 予約ダイアログ（詳細ページから1本予約する場合） */}
+            <ReservationDialog
+                isOpen={isReservationDialogOpen}
+                onClose={() => setIsReservationDialogOpen(false)}
+                selectedIds={[tree.id]}
+                selectedTrees={[{
+                    id: tree.id,
+                    management_number: tree.management_number,
+                    species_name: tree.species?.name || '不明',
+                    price: tree.price,
+                }]}
+                onSuccess={refreshData}
+            />
 
             {/* 出荷ダイアログ（詳細ページから1本出荷する場合） */}
             <ShipmentDialog
