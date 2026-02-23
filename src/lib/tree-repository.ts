@@ -3,6 +3,19 @@ import { createClient } from './supabase/client'
 
 export type TreeUpdate = Record<string, string | number | null>
 
+// ネットワークタイムアウト（5秒で繋がらなければオフライン扱い）
+const FETCH_TIMEOUT_MS = 5000
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function withTimeout<T extends PromiseLike<any>>(promise: T): Promise<Awaited<T>> {
+    return Promise.race([
+        promise,
+        new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('timeout')), FETCH_TIMEOUT_MS)
+        ),
+    ]) as Promise<Awaited<T>>
+}
+
 // ------------------------------------------------------------------
 // 一覧取得
 // ------------------------------------------------------------------
@@ -10,10 +23,12 @@ export async function getAllTrees(): Promise<CachedTree[]> {
     if (navigator.onLine) {
         try {
             const supabase = createClient()
-            const { data, error } = await supabase
-                .from('trees')
-                .select('*, species:species_master(id, name), client:clients(id, name), shipment_items(shipments(shipped_at))')
-                .order('created_at', { ascending: false })
+            const { data, error } = await withTimeout(
+                supabase
+                    .from('trees')
+                    .select('*, species:species_master(id, name), client:clients(id, name), shipment_items(shipments(shipped_at))')
+                    .order('created_at', { ascending: false })
+            )
 
             if (!error && data) {
                 // shipment_items→shipmentsからshipped_atをフラット化
@@ -43,11 +58,13 @@ export async function getTree(id: string): Promise<CachedTree | null> {
     if (navigator.onLine) {
         try {
             const supabase = createClient()
-            const { data, error } = await supabase
-                .from('trees')
-                .select('*, species:species_master(id, name), client:clients(id, name), shipment_items(shipments(shipped_at))')
-                .eq('id', id)
-                .single()
+            const { data, error } = await withTimeout(
+                supabase
+                    .from('trees')
+                    .select('*, species:species_master(id, name), client:clients(id, name), shipment_items(shipments(shipped_at))')
+                    .eq('id', id)
+                    .single()
+            )
 
             if (!error && data) {
                 const tree = flattenShippedAt([data])[0]
@@ -72,10 +89,12 @@ export async function getAllSpecies(): Promise<CachedSpecies[]> {
     if (navigator.onLine) {
         try {
             const supabase = createClient()
-            const { data, error } = await supabase
-                .from('species_master')
-                .select('id, name, name_kana, code')
-                .order('name_kana')
+            const { data, error } = await withTimeout(
+                supabase
+                    .from('species_master')
+                    .select('id, name, name_kana, code')
+                    .order('name_kana')
+            )
 
             if (!error && data) {
                 await db.species.clear()
