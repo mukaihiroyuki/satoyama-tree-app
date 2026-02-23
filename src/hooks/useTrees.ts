@@ -24,6 +24,11 @@ export function useTrees() {
                 setPendingCount(count)
                 setLoading(false)
             }
+        }).catch((err) => {
+            console.error('データ取得エラー:', err)
+            if (!cancelled) {
+                setLoading(false)
+            }
         })
         return () => { cancelled = true }
     }, [])
@@ -34,21 +39,25 @@ export function useTrees() {
 
         let cancelled = false
         const sync = async () => {
-            const count = await repo.getPendingEditCount()
-            if (count > 0) {
-                await repo.syncPendingEdits()
-            }
-            if (!cancelled) {
-                const [treesData, speciesData, newCount] = await Promise.all([
-                    repo.getAllTrees(),
-                    repo.getAllSpecies(),
-                    repo.getPendingEditCount(),
-                ])
-                if (!cancelled) {
-                    setTrees(treesData)
-                    setSpecies(speciesData)
-                    setPendingCount(newCount)
+            try {
+                const count = await repo.getPendingEditCount()
+                if (count > 0) {
+                    await repo.syncPendingEdits()
                 }
+                if (!cancelled) {
+                    const [treesData, speciesData, newCount] = await Promise.all([
+                        repo.getAllTrees(),
+                        repo.getAllSpecies(),
+                        repo.getPendingEditCount(),
+                    ])
+                    if (!cancelled) {
+                        setTrees(treesData)
+                        setSpecies(speciesData)
+                        setPendingCount(newCount)
+                    }
+                }
+            } catch (err) {
+                console.error('同期エラー:', err)
             }
         }
         sync()

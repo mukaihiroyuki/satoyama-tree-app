@@ -66,16 +66,17 @@ export default function NewTreePage() {
 
         // オンライン時：従来通りSupabaseに直接登録
         try {
-            const supabase = createClient()
+            // まず実際にネットワークが使えるか確認（3秒タイムアウト）
+            const controller = new AbortController()
+            const timer = setTimeout(() => controller.abort(), 3000)
+            await fetch('https://www.gstatic.com/generate_204', {
+                method: 'HEAD',
+                mode: 'no-cors',
+                signal: controller.signal,
+            })
+            clearTimeout(timer)
 
-            // まず接続テスト（5秒でタイムアウト）
-            const testResult = await Promise.race([
-                supabase.from('trees').select('id').limit(1),
-                new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
-            ])
-            if (!testResult || ('error' in testResult && testResult.error)) {
-                throw new Error('offline')
-            }
+            const supabase = createClient()
 
             // 新規樹種の場合：まずマスターに追加
             if (isNewSpecies && newSpeciesName) {
