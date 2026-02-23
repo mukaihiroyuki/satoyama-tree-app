@@ -20,6 +20,7 @@ export default function TreeEditForm({ tree, isOnline, saveMessage, onSave }: Tr
     const [price, setPrice] = useState(String(tree.price))
     const [location, setLocation] = useState(tree.location || '')
     const [notes, setNotes] = useState(tree.notes || '')
+    const [estimateNumber, setEstimateNumber] = useState(tree.estimate_number || '')
 
     // tree propが変わったら編集状態をリセット
     const [lastTreeId, setLastTreeId] = useState(tree.id)
@@ -30,6 +31,7 @@ export default function TreeEditForm({ tree, isOnline, saveMessage, onSave }: Tr
         setPrice(String(tree.price))
         setLocation(tree.location || '')
         setNotes(tree.notes || '')
+        setEstimateNumber(tree.estimate_number || '')
         setIsEditing(false)
     }
 
@@ -40,6 +42,7 @@ export default function TreeEditForm({ tree, isOnline, saveMessage, onSave }: Tr
         setPrice(String(tree.price))
         setLocation(tree.location || '')
         setNotes(tree.notes || '')
+        setEstimateNumber(tree.estimate_number || '')
         setIsEditing(false)
     }
 
@@ -56,6 +59,7 @@ export default function TreeEditForm({ tree, isOnline, saveMessage, onSave }: Tr
         if (!isNaN(newPrice) && newPrice !== tree.price) updates.price = newPrice
         if (location !== (tree.location || '')) updates.location = location || null
         if (notes !== (tree.notes || '')) updates.notes = notes || null
+        if (estimateNumber !== (tree.estimate_number || '')) updates.estimate_number = estimateNumber || null
 
         if (Object.keys(updates).length > 0) {
             await onSave(updates)
@@ -104,6 +108,12 @@ export default function TreeEditForm({ tree, isOnline, saveMessage, onSave }: Tr
                         <dd className="text-lg">{tree.location || '-'}</dd>
                     </div>
                 </dl>
+                {tree.estimate_number && (
+                    <div className="mt-4 pt-4 border-t">
+                        <dt className="text-sm text-gray-500">見積り番号</dt>
+                        <dd className="mt-1 font-mono text-gray-700">{tree.estimate_number}</dd>
+                    </div>
+                )}
                 {tree.notes && (
                     <div className="mt-4 pt-4 border-t">
                         <dt className="text-sm text-gray-500">備考</dt>
@@ -185,6 +195,17 @@ export default function TreeEditForm({ tree, isOnline, saveMessage, onSave }: Tr
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-lg"
                     />
                 </div>
+            </div>
+
+            <div className="mt-4">
+                <label className="block text-sm text-gray-500 mb-1">見積り番号</label>
+                <input
+                    type="text"
+                    value={estimateNumber}
+                    onChange={(e) => setEstimateNumber(e.target.value)}
+                    placeholder="例: EST-2026-001"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
             </div>
 
             <div className="mt-4">

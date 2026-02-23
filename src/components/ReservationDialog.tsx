@@ -20,6 +20,7 @@ export default function ReservationDialog({ isOpen, onClose, selectedIds, select
     const [clients, setClients] = useState<Client[]>([])
     const [selectedClientId, setSelectedClientId] = useState('')
     const [notes, setNotes] = useState('')
+    const [estimateNumber, setEstimateNumber] = useState('')
     const [loading, setLoading] = useState(false)
     const [isAddingClient, setIsAddingClient] = useState(false)
     const [newClientName, setNewClientName] = useState('')
@@ -67,6 +68,9 @@ export default function ReservationDialog({ isOpen, onClose, selectedIds, select
             }
             if (notes.trim()) {
                 updateData.notes = notes.trim()
+            }
+            if (estimateNumber.trim()) {
+                updateData.estimate_number = estimateNumber.trim()
             }
 
             const { error } = await supabase
@@ -138,6 +142,18 @@ export default function ReservationDialog({ isOpen, onClose, selectedIds, select
                                 ))}
                             </select>
                         )}
+                    </div>
+
+                    {/* 見積り番号 */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">見積り番号 (任意)</label>
+                        <input
+                            type="text"
+                            value={estimateNumber}
+                            onChange={(e) => setEstimateNumber(e.target.value)}
+                            placeholder="例: EST-2026-001"
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 outline-none"
+                        />
                     </div>
 
                     {/* 備考 */}
