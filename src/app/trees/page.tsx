@@ -20,6 +20,9 @@ export default function TreesPage() {
     const [speciesFilter, setSpeciesFilter] = useState('')
     const [locationFilter, setLocationFilter] = useState('')
     const [statusFilter, setStatusFilter] = useState('in_stock')
+    const [clientFilter, setClientFilter] = useState('')
+    const [shippedAtFilter, setShippedAtFilter] = useState('')
+    const [estimateNumberFilter, setEstimateNumberFilter] = useState('')
 
     // 選択状態
     const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -32,13 +35,23 @@ export default function TreesPage() {
         refreshData()
     }
 
+    // クライアント一覧をmemoize
+    const clientNames = useMemo(() => {
+        return [...new Set(
+            trees.map(t => t.client?.name).filter(Boolean)
+        )] as string[]
+    }, [trees])
+
     // フィルタ適用
     const filteredTrees = useMemo(() => trees.filter(tree => {
         if (speciesFilter && tree.species?.name !== speciesFilter) return false
         if (locationFilter && tree.location !== locationFilter) return false
         if (statusFilter && tree.status !== statusFilter) return false
+        if (clientFilter && tree.client?.name !== clientFilter) return false
+        if (shippedAtFilter && tree.shipped_at !== shippedAtFilter) return false
+        if (estimateNumberFilter && !(tree.estimate_number || '').includes(estimateNumberFilter)) return false
         return true
-    }), [trees, speciesFilter, locationFilter, statusFilter])
+    }), [trees, speciesFilter, locationFilter, statusFilter, clientFilter, shippedAtFilter, estimateNumberFilter])
 
     // 選択操作
     const toggleSelectAll = () => {
@@ -66,7 +79,7 @@ export default function TreesPage() {
 
     // CSVダウンロード機能
     const downloadCSV = () => {
-        const headers = ["管理番号", "樹種", "樹高(m)", "本立ち", "上代(円)", "状態", "場所", "クライアント", "入荷日", "備考"]
+        const headers = ["管理番号", "樹種", "樹高(m)", "本立ち", "上代(円)", "状態", "場所", "クライアント", "出荷日", "見積り番号", "入荷日", "備考"]
         const rows = filteredTrees.map(t => [
             t.management_number || '-',
             t.species?.name || '-',
@@ -76,6 +89,8 @@ export default function TreesPage() {
             statusLabels[t.status]?.label || t.status,
             t.location || '-',
             t.client?.name || '',
+            t.shipped_at || '',
+            t.estimate_number || '',
             t.arrived_at,
             t.notes || ''
         ])
@@ -207,6 +222,44 @@ export default function TreesPage() {
                             </select>
                         </div>
 
+                        {/* クライアントフィルター */}
+                        <div className="flex-1 min-w-[150px]">
+                            <label className="block text-sm font-medium text-gray-600 mb-1">クライアント</label>
+                            <select
+                                value={clientFilter}
+                                onChange={(e) => setClientFilter(e.target.value)}
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                            >
+                                <option value="">すべて</option>
+                                {clientNames.map((name) => (
+                                    <option key={name} value={name}>{name}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* 出荷日フィルター */}
+                        <div className="flex-1 min-w-[150px]">
+                            <label className="block text-sm font-medium text-gray-600 mb-1">出荷日</label>
+                            <input
+                                type="date"
+                                value={shippedAtFilter}
+                                onChange={(e) => setShippedAtFilter(e.target.value)}
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                            />
+                        </div>
+
+                        {/* 見積り番号検索 */}
+                        <div className="flex-1 min-w-[150px]">
+                            <label className="block text-sm font-medium text-gray-600 mb-1">見積り番号</label>
+                            <input
+                                type="text"
+                                value={estimateNumberFilter}
+                                onChange={(e) => setEstimateNumberFilter(e.target.value)}
+                                placeholder="番号で検索"
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                            />
+                        </div>
+
                         {/* クリアボタン */}
                         <div className="flex items-end">
                             <button
@@ -214,6 +267,9 @@ export default function TreesPage() {
                                     setSpeciesFilter('')
                                     setLocationFilter('')
                                     setStatusFilter('')
+                                    setClientFilter('')
+                                    setShippedAtFilter('')
+                                    setEstimateNumberFilter('')
                                     setSelectedIds([])
                                 }}
                                 className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg"
@@ -261,6 +317,8 @@ export default function TreesPage() {
                                         <th className="px-4 py-3 text-sm font-semibold text-green-800">状態</th>
                                         <th className="px-4 py-3 text-sm font-semibold text-green-800">場所</th>
                                         <th className="px-4 py-3 text-sm font-semibold text-green-800">クライアント</th>
+                                        <th className="px-4 py-3 text-sm font-semibold text-green-800">出荷日</th>
+                                        <th className="px-4 py-3 text-sm font-semibold text-green-800">見積り番号</th>
                                         <th className="px-4 py-3 text-sm font-semibold text-green-800">備考</th>
                                     </tr>
                                 </thead>
@@ -304,6 +362,12 @@ export default function TreesPage() {
                                             </td>
                                             <td className="px-4 py-3 text-gray-600 text-sm">
                                                 {tree.client?.name || '-'}
+                                            </td>
+                                            <td className="px-4 py-3 text-gray-600 text-sm">
+                                                {tree.shipped_at || '-'}
+                                            </td>
+                                            <td className="px-4 py-3 font-mono text-sm text-gray-600">
+                                                {tree.estimate_number || '-'}
                                             </td>
                                             <td className="px-4 py-3 text-gray-500 text-sm max-w-[200px] truncate">
                                                 {tree.notes || '-'}

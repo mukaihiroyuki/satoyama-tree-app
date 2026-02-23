@@ -10,6 +10,8 @@ export interface CachedTree {
     price: number
     status: string
     notes: string | null
+    shipped_at: string | null
+    estimate_number: string | null
     photo_url: string | null
     location: string | null
     management_number: string | null
