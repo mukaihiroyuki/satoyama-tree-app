@@ -176,8 +176,8 @@ export default function NewTreePage() {
             created_at: new Date().toISOString(),
         })
 
-        // 一覧に戻る（管理番号は電波復帰後に採番される）
-        router.replace('/trees')
+        // 詳細ページへ（管理番号は電波復帰後に採番されるが、ラベル印刷は可能）
+        router.replace(`/trees/${tempId}`)
     }
 
     return (
