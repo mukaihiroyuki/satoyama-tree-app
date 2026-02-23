@@ -12,14 +12,16 @@ export async function getAllTrees(): Promise<CachedTree[]> {
             const supabase = createClient()
             const { data, error } = await supabase
                 .from('trees')
-                .select('*, species:species_master(id, name), client:clients(id, name)')
+                .select('*, species:species_master(id, name), client:clients(id, name), shipment_items(shipments(shipped_at))')
                 .order('created_at', { ascending: false })
 
             if (!error && data) {
+                // shipment_items→shipmentsからshipped_atをフラット化
+                const trees = flattenShippedAt(data)
                 // IndexedDBを全入れ替え
                 await db.trees.clear()
-                await db.trees.bulkPut(data as CachedTree[])
-                return data as CachedTree[]
+                await db.trees.bulkPut(trees)
+                return trees
             }
         } catch {
             // ネットワークエラー → フォールバック
@@ -41,14 +43,15 @@ export async function getTree(id: string): Promise<CachedTree | null> {
             const supabase = createClient()
             const { data, error } = await supabase
                 .from('trees')
-                .select('*, species:species_master(id, name), client:clients(id, name)')
+                .select('*, species:species_master(id, name), client:clients(id, name), shipment_items(shipments(shipped_at))')
                 .eq('id', id)
                 .single()
 
             if (!error && data) {
-                await db.trees.put(data as CachedTree)
+                const tree = flattenShippedAt([data])[0]
+                await db.trees.put(tree)
                 // 未同期の編集があれば上書き適用して返す
-                return applyPendingEdits(data as CachedTree)
+                return applyPendingEdits(tree)
             }
         } catch {
             // フォールバック
@@ -225,5 +228,17 @@ async function applyPendingEditsToList(trees: CachedTree[]): Promise<CachedTree[
         const patches = pendingMap.get(tree.id)
         if (!patches) return tree
         return { ...tree, ...patches } as CachedTree
+    })
+}
+
+// ------------------------------------------------------------------
+// ヘルパー: shipment_items→shipmentsのネストからshipped_atをフラット化
+// ------------------------------------------------------------------
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function flattenShippedAt(rows: any[]): CachedTree[] {
+    return rows.map(row => {
+        const shippedAt = row.shipment_items?.[0]?.shipments?.shipped_at || null
+        const { shipment_items: _, ...rest } = row
+        return { ...rest, shipped_at: shippedAt } as CachedTree
     })
 }

@@ -89,10 +89,10 @@ export default function ShipmentDialog({ isOpen, onClose, selectedIds, selectedT
             const { error: itemsError } = await supabase.from('shipment_items').insert(items)
             if (itemsError) throw itemsError
 
-            // 3. 樹木のステータス更新 + 出荷日をセット
+            // 3. 樹木のステータス更新（出荷日はshipmentsテーブルから参照）
             const { error: updateError } = await supabase
                 .from('trees')
-                .update({ status: 'shipped', shipped_at: shippedAt })
+                .update({ status: 'shipped' })
                 .in('id', selectedIds)
 
             if (updateError) throw updateError
