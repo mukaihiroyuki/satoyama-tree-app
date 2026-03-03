@@ -136,11 +136,11 @@ const styles = StyleSheet.create({
         minHeight: 18,
         backgroundColor: "#fafbfc",
     },
+    colNo: { width: 28, textAlign: "center", paddingHorizontal: 2 },
+    colManagement: { width: 80, paddingHorizontal: 4 },
     colSpecies: { flex: 1, paddingHorizontal: 4 },
     colHeight: { width: 45, textAlign: "right", paddingHorizontal: 4 },
-    colCount: { width: 40, textAlign: "right", paddingHorizontal: 4 },
-    colUnitPrice: { width: 70, textAlign: "right", paddingHorizontal: 4 },
-    colAmount: { width: 80, textAlign: "right", paddingHorizontal: 4 },
+    colUnitPrice: { width: 80, textAlign: "right", paddingHorizontal: 4 },
     headerText: {
         fontSize: 7,
         fontWeight: "bold",
@@ -233,7 +233,7 @@ export default function DocumentPdf({
     notes,
     assignee,
 }: DocumentPdfProps) {
-    const subtotal = lines.reduce((sum, l) => sum + l.amount, 0);
+    const subtotal = lines.reduce((sum, l) => sum + l.unitPrice, 0);
     const tax = Math.floor(subtotal * 0.1);
     const total = subtotal + tax;
 
@@ -266,7 +266,7 @@ export default function DocumentPdf({
                             </Text>
                             <Text style={styles.amountSub}>
                                 本体 {formatCurrency(subtotal)} ／ 消費税{" "}
-                                {formatCurrency(tax)}
+                                {formatCurrency(tax)} ／ {lines.length} 本
                             </Text>
                         </View>
                     </View>
@@ -300,37 +300,37 @@ export default function DocumentPdf({
                 {/* 明細テーブル */}
                 <View style={styles.table}>
                     <View style={styles.tableHeader}>
+                        <Text style={[styles.headerText, styles.colNo]}>No.</Text>
+                        <Text style={[styles.headerText, styles.colManagement]}>管理番号</Text>
                         <Text style={[styles.headerText, styles.colSpecies]}>樹種名</Text>
                         <Text style={[styles.headerText, styles.colHeight]}>樹高</Text>
-                        <Text style={[styles.headerText, styles.colCount]}>本数</Text>
                         <Text style={[styles.headerText, styles.colUnitPrice]}>単価</Text>
-                        <Text style={[styles.headerText, styles.colAmount]}>金額</Text>
                     </View>
                     {lines.map((line, idx) => (
                         <View
                             key={idx}
                             style={idx % 2 === 1 ? styles.tableRowAlt : styles.tableRow}
                         >
+                            <Text style={[styles.cellText, styles.colNo]}>
+                                {idx + 1}
+                            </Text>
+                            <Text style={[styles.cellText, styles.colManagement, { fontFamily: "NotoSansJP", fontSize: 7 }]}>
+                                {line.managementNumber}
+                            </Text>
                             <Text style={[styles.cellText, styles.colSpecies]}>
                                 {line.speciesName}
                             </Text>
                             <Text style={[styles.cellText, styles.colHeight]}>
                                 {line.height}
                             </Text>
-                            <Text style={[styles.cellText, styles.colCount]}>
-                                {line.count}
-                            </Text>
-                            <Text style={[styles.cellText, styles.colUnitPrice]}>
-                                {formatCurrency(line.unitPrice)}
-                            </Text>
                             <Text
                                 style={[
                                     styles.cellText,
-                                    styles.colAmount,
+                                    styles.colUnitPrice,
                                     { fontWeight: "bold" },
                                 ]}
                             >
-                                {formatCurrency(line.amount)}
+                                {formatCurrency(line.unitPrice)}
                             </Text>
                         </View>
                     ))}

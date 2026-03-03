@@ -20,6 +20,7 @@ interface FetchedEstimate {
     estimate_items: {
         unit_price: number
         tree: {
+            management_number: string | null
             height: number
             species: { name: string } | null
         } | null
@@ -35,6 +36,7 @@ interface FetchedShipment {
     shipment_items: {
         unit_price: number
         tree: {
+            management_number: string | null
             height: number
             species: { name: string } | null
         } | null
@@ -42,32 +44,17 @@ interface FetchedShipment {
 }
 
 function buildLines(
-    items: { unit_price: number; tree: { height: number; species: { name: string } | null } | null }[]
+    items: { unit_price: number; tree: { management_number: string | null; height: number; species: { name: string } | null } | null }[]
 ): SpeciesLine[] {
-    const groupMap = new Map<string, { heights: Set<string>; count: number; totalPrice: number; avgUnitPrice: number }>()
-
-    for (const item of items) {
+    return items.map(item => {
         const speciesName = item.tree?.species
             ? (Array.isArray(item.tree.species) ? item.tree.species[0]?.name : item.tree.species.name) || '不明'
             : '不明'
-        const height = item.tree?.height ?? 0
-
-        const existing = groupMap.get(speciesName) || { heights: new Set<string>(), count: 0, totalPrice: 0, avgUnitPrice: 0 }
-        existing.heights.add(`${height}m`)
-        existing.count += 1
-        existing.totalPrice += item.unit_price
-        groupMap.set(speciesName, existing)
-    }
-
-    return Array.from(groupMap.entries()).map(([speciesName, data]) => {
-        const heights = Array.from(data.heights).sort()
-        const heightStr = heights.length === 1 ? heights[0] : `${heights[0]}~${heights[heights.length - 1]}`
         return {
+            managementNumber: item.tree?.management_number || '-',
             speciesName,
-            height: heightStr,
-            count: data.count,
-            unitPrice: data.count > 0 ? Math.round(data.totalPrice / data.count) : 0,
-            amount: data.totalPrice,
+            height: `${item.tree?.height ?? 0}m`,
+            unitPrice: item.unit_price,
         }
     })
 }
@@ -103,6 +90,7 @@ export default function PdfDownloadButton({ type, estimateId, shipmentId, label 
                     estimate_items(
                         unit_price,
                         tree:trees(
+                            management_number,
                             height,
                             species:species_master(name)
                         )
@@ -133,6 +121,7 @@ export default function PdfDownloadButton({ type, estimateId, shipmentId, label 
                     shipment_items(
                         unit_price,
                         tree:trees(
+                            management_number,
                             height,
                             species:species_master(name)
                         )
