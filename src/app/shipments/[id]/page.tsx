@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import PdfDownloadButton from '@/components/PdfDownloadButton'
 
 interface ShipmentDetail {
     id: string
@@ -172,6 +173,20 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                             {shipment.notes}
                         </div>
                     )}
+                </div>
+
+                {/* PDF ダウンロードボタン */}
+                <div className="flex flex-wrap gap-3">
+                    <PdfDownloadButton
+                        type="delivery"
+                        shipmentId={shipment.id}
+                        label="納品書ダウンロード"
+                    />
+                    <PdfDownloadButton
+                        type="invoice"
+                        shipmentId={shipment.id}
+                        label="請求書ダウンロード"
+                    />
                 </div>
 
                 {/* 樹種別内訳 */}

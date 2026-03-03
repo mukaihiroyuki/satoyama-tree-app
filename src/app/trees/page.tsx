@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import ShipmentDialog from '@/components/ShipmentDialog'
 import ReservationDialog from '@/components/ReservationDialog'
+import EstimateDialog from '@/components/EstimateDialog'
 import { useTrees } from '@/hooks/useTrees'
 
 const statusLabels: Record<string, { label: string; color: string }> = {
@@ -28,6 +29,7 @@ export default function TreesPage() {
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [isShipmentDialogOpen, setIsShipmentDialogOpen] = useState(false)
     const [isReservationDialogOpen, setIsReservationDialogOpen] = useState(false)
+    const [isEstimateDialogOpen, setIsEstimateDialogOpen] = useState(false)
 
     // 成功時のリフレッシュ
     const handleShipmentSuccess = () => {
@@ -406,6 +408,12 @@ export default function TreesPage() {
                     </div>
                     <div className="flex gap-2 sm:gap-4 overflow-x-auto w-full sm:w-auto justify-center">
                         <button
+                            onClick={() => setIsEstimateDialogOpen(true)}
+                            className="bg-emerald-600 hover:bg-emerald-700 px-4 sm:px-6 py-2 rounded-xl font-bold transition-all active:scale-95 whitespace-nowrap text-sm sm:text-base"
+                        >
+                            見積
+                        </button>
+                        <button
                             onClick={() => setIsReservationDialogOpen(true)}
                             className="bg-yellow-600 hover:bg-yellow-700 px-4 sm:px-6 py-2 rounded-xl font-bold transition-all active:scale-95 whitespace-nowrap text-sm sm:text-base"
                         >
@@ -441,6 +449,14 @@ export default function TreesPage() {
                 isOpen={isShipmentDialogOpen}
                 onClose={() => setIsShipmentDialogOpen(false)}
                 selectedIds={selectedIds}
+                selectedTrees={selectedTreesData}
+                onSuccess={handleShipmentSuccess}
+            />
+
+            {/* 見積ダイアログ */}
+            <EstimateDialog
+                isOpen={isEstimateDialogOpen}
+                onClose={() => setIsEstimateDialogOpen(false)}
                 selectedTrees={selectedTreesData}
                 onSuccess={handleShipmentSuccess}
             />

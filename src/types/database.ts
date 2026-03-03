@@ -81,6 +81,43 @@ export interface ShipmentInsert {
     notes?: string
 }
 
+// Estimate types
+export type EstimateStatus = '下書き' | '発行済' | '出荷済'
+
+export interface Estimate {
+    id: string
+    estimate_number: string
+    client_id: string | null
+    rate: number | null
+    status: EstimateStatus
+    issued_at: string | null
+    notes: string | null
+    created_at: string
+    updated_at: string
+}
+
+export interface EstimateItem {
+    id: string
+    estimate_id: string
+    tree_id: string
+    unit_price: number
+    created_at: string
+}
+
+export interface EstimateWithItems extends Estimate {
+    client: { name: string; address: string | null } | null
+    estimate_items: (EstimateItem & {
+        tree: {
+            id: string
+            management_number: string | null
+            height: number
+            trunk_count: number
+            price: number
+            species: { name: string } | null
+        } | null
+    })[]
+}
+
 // Statistics types
 export interface TreeStats {
     total: number

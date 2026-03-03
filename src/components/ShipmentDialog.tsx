@@ -15,9 +15,12 @@ interface ShipmentDialogProps {
     selectedIds: string[]
     selectedTrees: { id: string; management_number: string | null; species_name: string; price: number }[]
     onSuccess: () => void
+    estimateId?: string
+    defaultClientId?: string
+    defaultRate?: number
 }
 
-export default function ShipmentDialog({ isOpen, onClose, selectedIds, selectedTrees, onSuccess }: ShipmentDialogProps) {
+export default function ShipmentDialog({ isOpen, onClose, selectedIds, selectedTrees, onSuccess, estimateId, defaultClientId, defaultRate }: ShipmentDialogProps) {
     const [clients, setClients] = useState<Client[]>([])
     const [selectedClientId, setSelectedClientId] = useState('')
     const [shippedAt, setShippedAt] = useState(new Date().toISOString().split('T')[0])
@@ -32,7 +35,10 @@ export default function ShipmentDialog({ isOpen, onClose, selectedIds, selectedT
             const supabase = createClient()
             const { data } = await supabase.from('clients').select('id, name, default_rate').order('name')
             setClients(data || [])
-            if (data && data.length > 0 && !selectedClientId) {
+            if (defaultClientId) {
+                setSelectedClientId(defaultClientId)
+                if (defaultRate !== undefined) setRate(defaultRate)
+            } else if (data && data.length > 0 && !selectedClientId) {
                 setSelectedClientId(data[0].id)
                 setRate(data[0].default_rate ?? 1)
             }
@@ -40,7 +46,7 @@ export default function ShipmentDialog({ isOpen, onClose, selectedIds, selectedT
         if (isOpen) {
             fetchClients()
         }
-    }, [isOpen, selectedClientId])
+    }, [isOpen, selectedClientId, defaultClientId, defaultRate])
 
     async function handleAddClient() {
         if (!newClientName) return
@@ -66,14 +72,17 @@ export default function ShipmentDialog({ isOpen, onClose, selectedIds, selectedT
 
         try {
             // 1. 出荷ヘッダーの作成
+            const insertData: Record<string, unknown> = {
+                client_id: selectedClientId,
+                shipped_at: shippedAt,
+                notes: notes,
+                destination: clients.find(c => c.id === selectedClientId)?.name || '',
+            }
+            if (estimateId) insertData.estimate_id = estimateId
+
             const { data: shipment, error: shipmentError } = await supabase
                 .from('shipments')
-                .insert({
-                    client_id: selectedClientId,
-                    shipped_at: shippedAt,
-                    notes: notes,
-                    destination: clients.find(c => c.id === selectedClientId)?.name || ''
-                })
+                .insert(insertData)
                 .select()
                 .single()
 
@@ -96,6 +105,14 @@ export default function ShipmentDialog({ isOpen, onClose, selectedIds, selectedT
                 .in('id', selectedIds)
 
             if (updateError) throw updateError
+
+            // 4. 見積ステータスを「出荷済」に更新（見積経由の場合）
+            if (estimateId) {
+                await supabase
+                    .from('estimates')
+                    .update({ status: '出荷済', updated_at: new Date().toISOString() })
+                    .eq('id', estimateId)
+            }
 
             onSuccess()
             onClose()

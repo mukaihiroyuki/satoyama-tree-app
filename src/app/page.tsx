@@ -114,10 +114,16 @@ export default async function Home() {
         </div>
         <div className="mb-8 flex justify-between items-center">
           <Link
+            href="/estimates"
+            className="text-sm font-bold text-emerald-700 hover:text-emerald-900 flex items-center gap-1 opacity-70 hover:opacity-100 transition-all"
+          >
+            見積一覧 →
+          </Link>
+          <Link
             href="/shipments"
             className="text-sm font-bold text-blue-700 hover:text-blue-900 flex items-center gap-1 opacity-70 hover:opacity-100 transition-all"
           >
-            📦 出荷履歴を見る →
+            出荷履歴 →
           </Link>
           <Link
             href="/species"
