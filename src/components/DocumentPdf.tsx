@@ -383,9 +383,16 @@ export default function DocumentPdf({
                                             <Text style={[styles.cellText, styles.colNo]}>
                                                 {runningNo}
                                             </Text>
-                                            <Text style={[styles.cellText, styles.colManagement, { fontSize: 7 }]}>
-                                                {line.managementNumber}
-                                            </Text>
+                                            <View style={styles.colManagement}>
+                                                <Text style={[styles.cellText, { fontSize: 7 }]}>
+                                                    {line.managementNumber}
+                                                </Text>
+                                                {line.notes && (
+                                                    <Text style={{ fontSize: 6, color: "#64748b", marginTop: 1 }}>
+                                                        {line.notes}
+                                                    </Text>
+                                                )}
+                                            </View>
                                             <Text style={[styles.cellText, styles.colHeight]}>
                                                 {line.height}
                                             </Text>

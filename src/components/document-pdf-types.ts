@@ -5,6 +5,7 @@ export interface SpeciesLine {
     speciesName: string;
     height: string;
     unitPrice: number;
+    notes: string | null;
 }
 
 export interface DocumentPdfProps {
