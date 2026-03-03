@@ -173,10 +173,12 @@ const styles = StyleSheet.create({
         width: 80,
         textAlign: "right",
     },
-    colNo: { width: 30, textAlign: "center", paddingHorizontal: 2 },
-    colManagement: { width: 160, paddingHorizontal: 6 },
-    colHeight: { flex: 1, textAlign: "center", paddingHorizontal: 6 },
-    colUnitPrice: { width: 100, textAlign: "right", paddingHorizontal: 6 },
+    colNo: { width: 22, textAlign: "center", paddingHorizontal: 2 },
+    colTreeNo: { width: 55, paddingHorizontal: 4 },
+    colHeight: { width: 35, textAlign: "center", paddingHorizontal: 3 },
+    colTrunk: { width: 30, textAlign: "center", paddingHorizontal: 3 },
+    colManagement: { flex: 1, paddingHorizontal: 4 },
+    colUnitPrice: { width: 65, textAlign: "right", paddingHorizontal: 4 },
     headerText: {
         fontSize: 7,
         fontWeight: "bold",
@@ -355,7 +357,7 @@ export default function DocumentPdf({
                     {speciesGroups.map((group) => {
                         const groupSubtotal = group.items.reduce((s, l) => s + l.unitPrice, 0);
                         return (
-                            <View key={group.speciesName} wrap={false}>
+                            <View key={group.speciesName}>
                                 {/* セクション見出し */}
                                 <View style={styles.sectionHeader}>
                                     <Text style={styles.sectionTitle}>
@@ -368,8 +370,10 @@ export default function DocumentPdf({
                                 {/* 列ヘッダー */}
                                 <View style={styles.tableHeader}>
                                     <Text style={[styles.headerText, styles.colNo]}>No.</Text>
-                                    <Text style={[styles.headerText, styles.colManagement]}>管理番号</Text>
+                                    <Text style={[styles.headerText, styles.colTreeNo]}>樹木番号</Text>
                                     <Text style={[styles.headerText, styles.colHeight]}>樹高</Text>
+                                    <Text style={[styles.headerText, styles.colTrunk]}>株立</Text>
+                                    <Text style={[styles.headerText, styles.colManagement]}>管理番号</Text>
                                     <Text style={[styles.headerText, styles.colUnitPrice]}>単価</Text>
                                 </View>
                                 {/* 個別行 */}
@@ -383,18 +387,17 @@ export default function DocumentPdf({
                                             <Text style={[styles.cellText, styles.colNo]}>
                                                 {runningNo}
                                             </Text>
-                                            <View style={styles.colManagement}>
-                                                <Text style={[styles.cellText, { fontSize: 7 }]}>
-                                                    {line.managementNumber}
-                                                </Text>
-                                                {line.notes && (
-                                                    <Text style={{ fontSize: 6, color: "#64748b", marginTop: 1 }}>
-                                                        {line.notes}
-                                                    </Text>
-                                                )}
-                                            </View>
+                                            <Text style={[styles.cellText, styles.colTreeNo]}>
+                                                {line.treeNo}
+                                            </Text>
                                             <Text style={[styles.cellText, styles.colHeight]}>
                                                 {line.height}
+                                            </Text>
+                                            <Text style={[styles.cellText, styles.colTrunk]}>
+                                                {line.trunkCount > 1 ? line.trunkCount : ''}
+                                            </Text>
+                                            <Text style={[styles.cellText, styles.colManagement, { fontSize: 7 }]}>
+                                                {line.managementNumber}
                                             </Text>
                                             <Text
                                                 style={[

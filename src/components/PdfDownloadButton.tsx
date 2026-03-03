@@ -11,6 +11,14 @@ interface PdfDownloadButtonProps {
     label: string
 }
 
+interface TreeFields {
+    management_number: string | null
+    height: number
+    trunk_count: number
+    notes: string | null
+    species: { name: string } | null
+}
+
 interface FetchedEstimate {
     estimate_number: string
     issued_at: string | null
@@ -19,12 +27,7 @@ interface FetchedEstimate {
     client: { name: string; address: string | null } | { name: string; address: string | null }[] | null
     estimate_items: {
         unit_price: number
-        tree: {
-            management_number: string | null
-            height: number
-            notes: string | null
-            species: { name: string } | null
-        } | null
+        tree: TreeFields | null
     }[]
 }
 
@@ -36,28 +39,24 @@ interface FetchedShipment {
     estimate: { estimate_number: string; assignee: string | null } | { estimate_number: string; assignee: string | null }[] | null
     shipment_items: {
         unit_price: number
-        tree: {
-            management_number: string | null
-            height: number
-            notes: string | null
-            species: { name: string } | null
-        } | null
+        tree: TreeFields | null
     }[]
 }
 
 function buildLines(
-    items: { unit_price: number; tree: { management_number: string | null; height: number; notes: string | null; species: { name: string } | null } | null }[]
+    items: { unit_price: number; tree: TreeFields | null }[]
 ): SpeciesLine[] {
     return items.map(item => {
         const speciesName = item.tree?.species
             ? (Array.isArray(item.tree.species) ? item.tree.species[0]?.name : item.tree.species.name) || '不明'
             : '不明'
         return {
-            managementNumber: item.tree?.management_number || '-',
+            treeNo: item.tree?.notes || '',
             speciesName,
             height: `${item.tree?.height ?? 0}m`,
+            trunkCount: item.tree?.trunk_count ?? 1,
+            managementNumber: item.tree?.management_number || '-',
             unitPrice: item.unit_price,
-            notes: item.tree?.notes || null,
         }
     })
 }
@@ -95,6 +94,7 @@ export default function PdfDownloadButton({ type, estimateId, shipmentId, label 
                         tree:trees(
                             management_number,
                             height,
+                            trunk_count,
                             notes,
                             species:species_master(name)
                         )
@@ -127,6 +127,7 @@ export default function PdfDownloadButton({ type, estimateId, shipmentId, label 
                         tree:trees(
                             management_number,
                             height,
+                            trunk_count,
                             notes,
                             species:species_master(name)
                         )

@@ -1,11 +1,12 @@
 export type DocumentType = "estimate" | "delivery" | "invoice";
 
 export interface SpeciesLine {
-    managementNumber: string;
+    treeNo: string;
     speciesName: string;
     height: string;
+    trunkCount: number;
+    managementNumber: string;
     unitPrice: number;
-    notes: string | null;
 }
 
 export interface DocumentPdfProps {
