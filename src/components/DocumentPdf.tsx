@@ -116,31 +116,67 @@ const styles = StyleSheet.create({
     table: {
         marginBottom: 4,
     },
+    sectionHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#e2e8f0",
+        borderTop: "1pt solid #94a3b8",
+        paddingVertical: 4,
+        paddingHorizontal: 6,
+        marginTop: 6,
+    },
+    sectionTitle: {
+        fontSize: 9,
+        fontWeight: "bold",
+        color: "#1e293b",
+    },
+    sectionCount: {
+        fontSize: 7,
+        color: "#64748b",
+        marginLeft: 6,
+    },
     tableHeader: {
         flexDirection: "row",
         backgroundColor: "#f1f5f9",
-        borderTop: "1pt solid #cbd5e1",
-        borderBottom: "1pt solid #cbd5e1",
-        paddingVertical: 4,
+        borderBottom: "0.5pt solid #cbd5e1",
+        paddingVertical: 3,
     },
     tableRow: {
         flexDirection: "row",
         borderBottom: "0.5pt solid #e2e8f0",
         paddingVertical: 3,
-        minHeight: 18,
+        minHeight: 16,
     },
     tableRowAlt: {
         flexDirection: "row",
         borderBottom: "0.5pt solid #e2e8f0",
         paddingVertical: 3,
-        minHeight: 18,
+        minHeight: 16,
         backgroundColor: "#fafbfc",
     },
-    colNo: { width: 28, textAlign: "center", paddingHorizontal: 2 },
+    sectionSubtotal: {
+        flexDirection: "row",
+        justifyContent: "flex-end",
+        borderTop: "0.5pt solid #cbd5e1",
+        paddingVertical: 3,
+        paddingHorizontal: 6,
+        backgroundColor: "#f8fafc",
+    },
+    sectionSubtotalLabel: {
+        fontSize: 8,
+        color: "#475569",
+        marginRight: 8,
+    },
+    sectionSubtotalValue: {
+        fontSize: 8,
+        fontWeight: "bold",
+        width: 80,
+        textAlign: "right",
+    },
+    colNo: { width: 24, textAlign: "center", paddingHorizontal: 2 },
     colManagement: { width: 80, paddingHorizontal: 4 },
-    colSpecies: { flex: 1, paddingHorizontal: 4 },
     colHeight: { width: 45, textAlign: "right", paddingHorizontal: 4 },
-    colUnitPrice: { width: 80, textAlign: "right", paddingHorizontal: 4 },
+    colUnitPrice: { flex: 1, textAlign: "right", paddingHorizontal: 6 },
     headerText: {
         fontSize: 7,
         fontWeight: "bold",
@@ -237,6 +273,23 @@ export default function DocumentPdf({
     const tax = Math.floor(subtotal * 0.1);
     const total = subtotal + tax;
 
+    // 樹種別にグループ化（順序を保持）
+    const speciesGroups: { speciesName: string; items: typeof lines }[] = [];
+    const groupMap = new Map<string, typeof lines>();
+    for (const line of lines) {
+        const existing = groupMap.get(line.speciesName);
+        if (existing) {
+            existing.push(line);
+        } else {
+            const arr = [line];
+            groupMap.set(line.speciesName, arr);
+            speciesGroups.push({ speciesName: line.speciesName, items: arr });
+        }
+    }
+    // 本数の多い順にソート
+    speciesGroups.sort((a, b) => b.items.length - a.items.length);
+    let runningNo = 0;
+
     return (
         <Document>
             <Page size="A4" style={styles.page}>
@@ -297,43 +350,69 @@ export default function DocumentPdf({
                     </View>
                 </View>
 
-                {/* 明細テーブル */}
+                {/* 明細テーブル（樹種別セクション） */}
                 <View style={styles.table}>
-                    <View style={styles.tableHeader}>
-                        <Text style={[styles.headerText, styles.colNo]}>No.</Text>
-                        <Text style={[styles.headerText, styles.colManagement]}>管理番号</Text>
-                        <Text style={[styles.headerText, styles.colSpecies]}>樹種名</Text>
-                        <Text style={[styles.headerText, styles.colHeight]}>樹高</Text>
-                        <Text style={[styles.headerText, styles.colUnitPrice]}>単価</Text>
-                    </View>
-                    {lines.map((line, idx) => (
-                        <View
-                            key={idx}
-                            style={idx % 2 === 1 ? styles.tableRowAlt : styles.tableRow}
-                        >
-                            <Text style={[styles.cellText, styles.colNo]}>
-                                {idx + 1}
-                            </Text>
-                            <Text style={[styles.cellText, styles.colManagement, { fontFamily: "NotoSansJP", fontSize: 7 }]}>
-                                {line.managementNumber}
-                            </Text>
-                            <Text style={[styles.cellText, styles.colSpecies]}>
-                                {line.speciesName}
-                            </Text>
-                            <Text style={[styles.cellText, styles.colHeight]}>
-                                {line.height}
-                            </Text>
-                            <Text
-                                style={[
-                                    styles.cellText,
-                                    styles.colUnitPrice,
-                                    { fontWeight: "bold" },
-                                ]}
-                            >
-                                {formatCurrency(line.unitPrice)}
-                            </Text>
-                        </View>
-                    ))}
+                    {speciesGroups.map((group) => {
+                        const groupSubtotal = group.items.reduce((s, l) => s + l.unitPrice, 0);
+                        return (
+                            <View key={group.speciesName} wrap={false}>
+                                {/* セクション見出し */}
+                                <View style={styles.sectionHeader}>
+                                    <Text style={styles.sectionTitle}>
+                                        {group.speciesName}
+                                    </Text>
+                                    <Text style={styles.sectionCount}>
+                                        {group.items.length} 本
+                                    </Text>
+                                </View>
+                                {/* 列ヘッダー */}
+                                <View style={styles.tableHeader}>
+                                    <Text style={[styles.headerText, styles.colNo]}>No.</Text>
+                                    <Text style={[styles.headerText, styles.colManagement]}>管理番号</Text>
+                                    <Text style={[styles.headerText, styles.colHeight]}>樹高</Text>
+                                    <Text style={[styles.headerText, styles.colUnitPrice]}>単価</Text>
+                                </View>
+                                {/* 個別行 */}
+                                {group.items.map((line, idx) => {
+                                    runningNo++;
+                                    return (
+                                        <View
+                                            key={runningNo}
+                                            style={idx % 2 === 1 ? styles.tableRowAlt : styles.tableRow}
+                                        >
+                                            <Text style={[styles.cellText, styles.colNo]}>
+                                                {runningNo}
+                                            </Text>
+                                            <Text style={[styles.cellText, styles.colManagement, { fontSize: 7 }]}>
+                                                {line.managementNumber}
+                                            </Text>
+                                            <Text style={[styles.cellText, styles.colHeight]}>
+                                                {line.height}
+                                            </Text>
+                                            <Text
+                                                style={[
+                                                    styles.cellText,
+                                                    styles.colUnitPrice,
+                                                    { fontWeight: "bold" },
+                                                ]}
+                                            >
+                                                {formatCurrency(line.unitPrice)}
+                                            </Text>
+                                        </View>
+                                    );
+                                })}
+                                {/* セクション小計 */}
+                                <View style={styles.sectionSubtotal}>
+                                    <Text style={styles.sectionSubtotalLabel}>
+                                        {group.speciesName} 小計（{group.items.length} 本）
+                                    </Text>
+                                    <Text style={styles.sectionSubtotalValue}>
+                                        {formatCurrency(groupSubtotal)}
+                                    </Text>
+                                </View>
+                            </View>
+                        );
+                    })}
                 </View>
 
                 {/* 合計セクション */}
