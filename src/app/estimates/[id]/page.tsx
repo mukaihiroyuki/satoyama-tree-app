@@ -1,11 +1,13 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
+import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import type { EstimateStatus } from '@/types/database'
-import PdfDownloadButton from '@/components/PdfDownloadButton'
 import ShipmentDialog from '@/components/ShipmentDialog'
+
+const PdfDownloadButton = dynamic(() => import('@/components/PdfDownloadButton'), { ssr: false })
 
 interface EstimateDetail {
     id: string
@@ -14,6 +16,7 @@ interface EstimateDetail {
     rate: number | null
     issued_at: string | null
     notes: string | null
+    assignee: string | null
     created_at: string
     client: { id: string; name: string; address: string | null } | { id: string; name: string; address: string | null }[] | null
     estimate_items: {
@@ -61,6 +64,7 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
                 rate,
                 issued_at,
                 notes,
+                assignee,
                 created_at,
                 client:clients(id, name, address),
                 estimate_items(
@@ -218,6 +222,10 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
                         <div>
                             <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">発行日</p>
                             <p className="text-lg font-bold text-gray-800 mt-1">{estimate.issued_at || '-'}</p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">担当者</p>
+                            <p className="text-lg font-bold text-gray-800 mt-1">{estimate.assignee || '-'}</p>
                         </div>
                     </div>
 

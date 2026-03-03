@@ -22,6 +22,18 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  serverExternalPackages: [
+    '@react-pdf/renderer',
+    '@react-pdf/layout',
+    '@react-pdf/pdfkit',
+    '@react-pdf/primitives',
+    '@react-pdf/font',
+    '@react-pdf/fns',
+    '@react-pdf/image',
+    '@react-pdf/stylesheet',
+    '@react-pdf/textkit',
+    '@react-pdf/types',
+  ],
 };
 
 export default withPWA(nextConfig);

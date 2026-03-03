@@ -12,6 +12,7 @@ interface EstimateRow {
     rate: number | null
     issued_at: string | null
     notes: string | null
+    assignee: string | null
     created_at: string
     client: { name: string } | { name: string }[] | null
     estimate_items: { unit_price: number }[]
@@ -40,6 +41,7 @@ export default function EstimatesPage() {
                     rate,
                     issued_at,
                     notes,
+                    assignee,
                     created_at,
                     client:clients(name),
                     estimate_items(unit_price)
@@ -117,6 +119,7 @@ export default function EstimatesPage() {
                                         <th className="px-4 py-3 text-sm font-semibold text-green-800 text-right">本数</th>
                                         <th className="px-4 py-3 text-sm font-semibold text-green-800 text-right">合計金額</th>
                                         <th className="px-4 py-3 text-sm font-semibold text-green-800">ステータス</th>
+                                        <th className="px-4 py-3 text-sm font-semibold text-green-800">担当者</th>
                                         <th className="px-4 py-3 text-sm font-semibold text-green-800">発行日</th>
                                     </tr>
                                 </thead>
@@ -149,6 +152,9 @@ export default function EstimatesPage() {
                                                     <span className={`px-2 py-1 rounded-full text-xs font-bold ${statusColors[est.status] || ''}`}>
                                                         {est.status}
                                                     </span>
+                                                </td>
+                                                <td className="px-4 py-3 text-sm text-gray-600">
+                                                    {est.assignee || '-'}
                                                 </td>
                                                 <td className="px-4 py-3 text-sm text-gray-600">
                                                     {est.issued_at || '-'}

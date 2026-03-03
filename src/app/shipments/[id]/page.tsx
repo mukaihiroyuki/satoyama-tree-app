@@ -1,9 +1,11 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
+import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import PdfDownloadButton from '@/components/PdfDownloadButton'
+
+const PdfDownloadButton = dynamic(() => import('@/components/PdfDownloadButton'), { ssr: false })
 
 interface ShipmentDetail {
     id: string

@@ -6,3 +6,11 @@ export const COMPANY_INFO = {
   tel: "0178-28-0130",
   fax: "0178-20-1217",
 } as const;
+
+export const ASSIGNEES = [
+  "橋本忍",
+  "向中野大志",
+  "小笠原久美子",
+  "細越未紀",
+  "橋本渚",
+] as const;

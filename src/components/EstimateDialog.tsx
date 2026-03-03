@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { ASSIGNEES } from '@/lib/constants'
 
 interface Client {
     id: string
@@ -21,6 +22,7 @@ export default function EstimateDialog({ isOpen, onClose, selectedTrees, onSucce
     const [selectedClientId, setSelectedClientId] = useState('')
     const [rate, setRate] = useState(1)
     const [issuedAt, setIssuedAt] = useState(new Date().toISOString().split('T')[0])
+    const [assignee, setAssignee] = useState('')
     const [notes, setNotes] = useState('')
     const [loading, setLoading] = useState(false)
     const [isAddingClient, setIsAddingClient] = useState(false)
@@ -89,6 +91,7 @@ export default function EstimateDialog({ isOpen, onClose, selectedTrees, onSucce
                     status: '下書き',
                     issued_at: issuedAt,
                     notes: notes || null,
+                    assignee: assignee || null,
                 })
                 .select()
                 .single()
@@ -199,6 +202,21 @@ export default function EstimateDialog({ isOpen, onClose, selectedTrees, onSucce
                             onChange={(e) => setIssuedAt(e.target.value)}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 outline-none"
                         />
+                    </div>
+
+                    {/* 担当者 */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">担当者</label>
+                        <select
+                            value={assignee}
+                            onChange={(e) => setAssignee(e.target.value)}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 outline-none"
+                        >
+                            <option value="">選択してください</option>
+                            {ASSIGNEES.map(name => (
+                                <option key={name} value={name}>{name}</option>
+                            ))}
+                        </select>
                     </div>
 
                     {/* 備考 */}

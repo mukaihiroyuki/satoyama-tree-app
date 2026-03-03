@@ -7,6 +7,7 @@ import {
     View,
     StyleSheet,
     Font,
+    Image,
 } from "@react-pdf/renderer";
 import { COMPANY_INFO } from "@/lib/constants";
 
@@ -88,6 +89,12 @@ const styles = StyleSheet.create({
         color: "#64748b",
         marginTop: 4,
     },
+    logoImage: {
+        width: 130,
+        height: 42,
+        objectFit: "contain",
+        marginBottom: 6,
+    },
     companyBlock: {
         marginTop: 4,
     },
@@ -100,6 +107,11 @@ const styles = StyleSheet.create({
         fontSize: 7,
         color: "#475569",
         marginBottom: 1,
+    },
+    assigneeText: {
+        fontSize: 7,
+        color: "#475569",
+        marginTop: 2,
     },
     table: {
         marginBottom: 4,
@@ -196,7 +208,8 @@ function formatCurrency(amount: number): string {
     return `¥${amount.toLocaleString("ja-JP")}`;
 }
 
-export type DocumentType = "estimate" | "delivery" | "invoice";
+import type { DocumentType, DocumentPdfProps } from './document-pdf-types';
+export type { DocumentType, SpeciesLine, DocumentPdfProps } from './document-pdf-types';
 
 const DOC_TITLES: Record<DocumentType, string> = {
     estimate: "御 見 積 書",
@@ -210,24 +223,6 @@ const DOC_AMOUNT_LABELS: Record<DocumentType, string> = {
     invoice: "ご請求金額",
 };
 
-export interface SpeciesLine {
-    speciesName: string;
-    height: string;
-    count: number;
-    unitPrice: number;
-    amount: number;
-}
-
-export interface DocumentPdfProps {
-    type: DocumentType;
-    documentNumber: string;
-    issuedAt: string;
-    clientName: string;
-    clientAddress?: string | null;
-    lines: SpeciesLine[];
-    notes?: string | null;
-}
-
 export default function DocumentPdf({
     type,
     documentNumber,
@@ -236,6 +231,7 @@ export default function DocumentPdf({
     clientAddress,
     lines,
     notes,
+    assignee,
 }: DocumentPdfProps) {
     const subtotal = lines.reduce((sum, l) => sum + l.amount, 0);
     const tax = Math.floor(subtotal * 0.1);
@@ -277,6 +273,7 @@ export default function DocumentPdf({
 
                     {/* 右: 自社情報 */}
                     <View style={styles.headerRight}>
+                        <Image src="/logo.jpg" style={styles.logoImage} />
                         <View style={styles.companyBlock}>
                             <Text style={styles.companyName}>{COMPANY_INFO.name}</Text>
                             <Text style={styles.companyDetail}>
@@ -291,6 +288,11 @@ export default function DocumentPdf({
                             <Text style={styles.companyDetail}>
                                 TEL {COMPANY_INFO.tel}  FAX {COMPANY_INFO.fax}
                             </Text>
+                            {assignee && (
+                                <Text style={styles.assigneeText}>
+                                    担当者：{assignee}
+                                </Text>
+                            )}
                         </View>
                     </View>
                 </View>
