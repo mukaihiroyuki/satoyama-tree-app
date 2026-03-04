@@ -103,6 +103,7 @@ export default function EstimateDialog({ isOpen, onClose, selectedTrees, onSucce
                 estimate_id: estimate.id,
                 tree_id: tree.id,
                 unit_price: Math.round(tree.price * rate),
+                original_price: tree.price,
             }))
 
             const { error: itemsError } = await supabase.from('estimate_items').insert(items)

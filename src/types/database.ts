@@ -101,6 +101,7 @@ export interface EstimateItem {
     estimate_id: string
     tree_id: string
     unit_price: number
+    original_price: number | null
     created_at: string
 }
 

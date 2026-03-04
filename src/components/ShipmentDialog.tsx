@@ -92,7 +92,8 @@ export default function ShipmentDialog({ isOpen, onClose, selectedIds, selectedT
             const items = selectedTrees.map(tree => ({
                 shipment_id: shipment.id,
                 tree_id: tree.id,
-                unit_price: Math.round(tree.price * rate) // 上代 × 掛け率 = 出荷単価
+                unit_price: Math.round(tree.price * rate), // 上代 × 掛け率 = 出荷単価
+                original_price: tree.price,
             }))
 
             const { error: itemsError } = await supabase.from('shipment_items').insert(items)

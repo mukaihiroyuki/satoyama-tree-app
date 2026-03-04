@@ -27,6 +27,7 @@ interface FetchedEstimate {
     client: { name: string; address: string | null } | { name: string; address: string | null }[] | null
     estimate_items: {
         unit_price: number
+        original_price: number | null
         tree: TreeFields | null
     }[]
 }
@@ -39,12 +40,13 @@ interface FetchedShipment {
     estimate: { estimate_number: string; assignee: string | null } | { estimate_number: string; assignee: string | null }[] | null
     shipment_items: {
         unit_price: number
+        original_price: number | null
         tree: TreeFields | null
     }[]
 }
 
 function buildLines(
-    items: { unit_price: number; tree: TreeFields | null }[]
+    items: { unit_price: number; original_price: number | null; tree: TreeFields | null }[]
 ): SpeciesLine[] {
     return items.map(item => {
         const speciesName = item.tree?.species
@@ -56,6 +58,7 @@ function buildLines(
             height: `${item.tree?.height ?? 0}m`,
             trunkCount: item.tree?.trunk_count ?? 1,
             managementNumber: item.tree?.management_number || '-',
+            originalPrice: item.original_price ?? item.unit_price,
             unitPrice: item.unit_price,
         }
     })
@@ -91,6 +94,7 @@ export default function PdfDownloadButton({ type, estimateId, shipmentId, label 
                     client:clients(name, address),
                     estimate_items(
                         unit_price,
+                        original_price,
                         tree:trees(
                             management_number,
                             height,
@@ -124,6 +128,7 @@ export default function PdfDownloadButton({ type, estimateId, shipmentId, label 
                     estimate:estimates(estimate_number, assignee),
                     shipment_items(
                         unit_price,
+                        original_price,
                         tree:trees(
                             management_number,
                             height,

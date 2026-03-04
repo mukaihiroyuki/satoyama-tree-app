@@ -6,6 +6,7 @@ export interface SpeciesLine {
     height: string;
     trunkCount: number;
     managementNumber: string;
+    originalPrice?: number;
     unitPrice: number;
 }
 

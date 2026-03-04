@@ -34,6 +34,7 @@ const styles = StyleSheet.create({
     },
     headerLeft: {
         flex: 1,
+        marginRight: 16,
     },
     headerRight: {
         width: 200,
@@ -71,42 +72,45 @@ const styles = StyleSheet.create({
         backgroundColor: "#f8fafc",
         border: "1pt solid #e2e8f0",
         borderRadius: 4,
-        padding: 12,
+        padding: 16,
+        paddingVertical: 10,
         marginVertical: 12,
         alignItems: "center",
+        justifyContent: "center",
+        flexGrow: 1,
     },
     amountLabel: {
-        fontSize: 10,
+        fontSize: 11,
         color: "#64748b",
-        marginBottom: 4,
+        marginBottom: 6,
     },
     amountValue: {
-        fontSize: 22,
+        fontSize: 24,
         fontWeight: "bold",
     },
     amountSub: {
-        fontSize: 8,
+        fontSize: 9,
         color: "#64748b",
-        marginTop: 4,
+        marginTop: 6,
     },
     logoImage: {
-        width: 130,
-        height: 42,
+        width: 150,
+        height: 48,
         objectFit: "contain",
-        marginBottom: 6,
+        marginBottom: 8,
     },
     companyBlock: {
         marginTop: 4,
     },
     companyName: {
-        fontSize: 10,
+        fontSize: 11,
         fontWeight: "bold",
-        marginBottom: 2,
+        marginBottom: 3,
     },
     companyDetail: {
-        fontSize: 7,
+        fontSize: 8,
         color: "#475569",
-        marginBottom: 1,
+        marginBottom: 1.5,
     },
     assigneeText: {
         fontSize: 7,
@@ -178,7 +182,8 @@ const styles = StyleSheet.create({
     colHeight: { width: 35, textAlign: "center", paddingHorizontal: 3 },
     colTrunk: { width: 30, textAlign: "center", paddingHorizontal: 3 },
     colManagement: { flex: 1, paddingHorizontal: 4 },
-    colUnitPrice: { width: 65, textAlign: "right", paddingHorizontal: 4 },
+    colOriginalPrice: { width: 60, textAlign: "right", paddingHorizontal: 4 },
+    colUnitPrice: { width: 60, textAlign: "right", paddingHorizontal: 4 },
     headerText: {
         fontSize: 7,
         fontWeight: "bold",
@@ -304,29 +309,29 @@ export default function DocumentPdf({
                 {/* タイトル */}
                 <Text style={styles.docTitle}>{DOC_TITLES[type]}</Text>
 
-                <View style={styles.headerRow}>
-                    {/* 左: クライアント情報 */}
-                    <View style={styles.headerLeft}>
-                        {clientAddress && (
-                            <Text style={styles.customerAddress}>{clientAddress}</Text>
-                        )}
-                        <Text style={styles.customerName}>
-                            {clientName} <Text style={styles.customerSuffix}>御中</Text>
-                        </Text>
+                {/* クライアント名（全幅） */}
+                <View style={{ marginBottom: 8 }}>
+                    {clientAddress && (
+                        <Text style={styles.customerAddress}>{clientAddress}</Text>
+                    )}
+                    <Text style={styles.customerName}>
+                        {clientName} <Text style={styles.customerSuffix}>御中</Text>
+                    </Text>
+                </View>
 
-                        <View style={styles.amountBox}>
-                            <Text style={styles.amountLabel}>{DOC_AMOUNT_LABELS[type]}</Text>
-                            <Text style={styles.amountValue}>
-                                {formatCurrency(total)}（税込）
-                            </Text>
-                            <Text style={styles.amountSub}>
-                                本体 {formatCurrency(subtotal)} ／ 消費税{" "}
-                                {formatCurrency(tax)} ／ {lines.length} 本
-                            </Text>
-                        </View>
+                {/* 金額ボックス ｜ 会社情報（横並びフル幅） */}
+                <View style={styles.headerRow}>
+                    <View style={[styles.amountBox, { flex: 1, marginVertical: 0, marginRight: 0 }]}>
+                        <Text style={styles.amountLabel}>{DOC_AMOUNT_LABELS[type]}</Text>
+                        <Text style={styles.amountValue}>
+                            {formatCurrency(total)}（税込）
+                        </Text>
+                        <Text style={styles.amountSub}>
+                            本体 {formatCurrency(subtotal)} ／ 消費税{" "}
+                            {formatCurrency(tax)} ／ {lines.length} 本
+                        </Text>
                     </View>
 
-                    {/* 右: 自社情報 */}
                     <View style={styles.headerRight}>
                         <Image src="/logo.jpg" style={styles.logoImage} />
                         <View style={styles.companyBlock}>
@@ -356,6 +361,7 @@ export default function DocumentPdf({
                 <View style={styles.table}>
                     {speciesGroups.map((group) => {
                         const groupSubtotal = group.items.reduce((s, l) => s + l.unitPrice, 0);
+                        const groupOriginalSubtotal = group.items.reduce((s, l) => s + (l.originalPrice ?? l.unitPrice), 0);
                         return (
                             <View key={group.speciesName}>
                                 {/* セクション見出し */}
@@ -374,6 +380,7 @@ export default function DocumentPdf({
                                     <Text style={[styles.headerText, styles.colHeight]}>樹高</Text>
                                     <Text style={[styles.headerText, styles.colTrunk]}>株立</Text>
                                     <Text style={[styles.headerText, styles.colManagement]}>管理番号</Text>
+                                    <Text style={[styles.headerText, styles.colOriginalPrice]}>定価</Text>
                                     <Text style={[styles.headerText, styles.colUnitPrice]}>単価</Text>
                                 </View>
                                 {/* 個別行 */}
@@ -402,6 +409,15 @@ export default function DocumentPdf({
                                             <Text
                                                 style={[
                                                     styles.cellText,
+                                                    styles.colOriginalPrice,
+                                                    { color: "#64748b" },
+                                                ]}
+                                            >
+                                                {line.originalPrice != null ? formatCurrency(line.originalPrice) : ''}
+                                            </Text>
+                                            <Text
+                                                style={[
+                                                    styles.cellText,
                                                     styles.colUnitPrice,
                                                     { fontWeight: "bold" },
                                                 ]}
@@ -415,6 +431,9 @@ export default function DocumentPdf({
                                 <View style={styles.sectionSubtotal}>
                                     <Text style={styles.sectionSubtotalLabel}>
                                         {group.speciesName} 小計（{group.items.length} 本）
+                                    </Text>
+                                    <Text style={[styles.sectionSubtotalValue, { color: "#64748b" }]}>
+                                        {formatCurrency(groupOriginalSubtotal)}
                                     </Text>
                                     <Text style={styles.sectionSubtotalValue}>
                                         {formatCurrency(groupSubtotal)}
