@@ -8,11 +8,11 @@ async function getTreeStats() {
 
   const { data: trees, error } = await supabase
     .from('trees')
-    .select('status, price')
+    .select('status')
 
   if (error) {
     console.error('Error fetching trees:', error)
-    return { total: 0, in_stock: 0, reserved: 0, shipped: 0, total_value: 0 }
+    return { total: 0, in_stock: 0, reserved: 0, shipped: 0 }
   }
 
   const stats = {
@@ -20,7 +20,6 @@ async function getTreeStats() {
     in_stock: trees?.filter(t => t.status === 'in_stock').length || 0,
     reserved: trees?.filter(t => t.status === 'reserved').length || 0,
     shipped: trees?.filter(t => t.status === 'shipped').length || 0,
-    total_value: trees?.reduce((sum, t) => sum + (t.price || 0), 0) || 0,
   }
 
   return stats
@@ -43,9 +42,67 @@ async function getSpecies() {
   return data || []
 }
 
+// クライアント別出荷実績を取得
+async function getClientSales() {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('shipments')
+    .select(`
+      shipped_at,
+      client:clients(id, name),
+      shipment_items(unit_price)
+    `)
+
+  if (error) {
+    console.error('Error fetching client sales:', error)
+    return []
+  }
+
+  // クライアントごとに集計
+  const map = new Map<string, {
+    clientId: string
+    clientName: string
+    totalCount: number
+    totalAmount: number
+    lastShippedAt: string
+  }>()
+
+  for (const shipment of data || []) {
+    const client = Array.isArray(shipment.client)
+      ? shipment.client[0]
+      : shipment.client
+    if (!client) continue
+
+    const existing = map.get(client.id) || {
+      clientId: client.id,
+      clientName: client.name,
+      totalCount: 0,
+      totalAmount: 0,
+      lastShippedAt: '',
+    }
+
+    const items = shipment.shipment_items || []
+    existing.totalCount += items.length
+    existing.totalAmount += items.reduce(
+      (sum: number, item: { unit_price: number }) => sum + (item.unit_price || 0),
+      0
+    )
+    if (shipment.shipped_at > existing.lastShippedAt) {
+      existing.lastShippedAt = shipment.shipped_at
+    }
+
+    map.set(client.id, existing)
+  }
+
+  // 売上金額の降順でソート
+  return Array.from(map.values()).sort((a, b) => b.totalAmount - a.totalAmount)
+}
+
 export default async function Home() {
   const stats = await getTreeStats()
   const species = await getSpecies()
+  const clientSales = await getClientSales()
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
@@ -84,12 +141,57 @@ export default async function Home() {
             color="yellow"
           />
           <StatCard
-            title="在庫総額"
-            value={stats.total_value.toLocaleString()}
-            unit="円"
+            title="出荷済み"
+            value={stats.shipped}
+            unit="本"
             color="purple"
           />
         </div>
+
+        {/* クライアント別 出荷実績 */}
+        {clientSales.length > 0 && (
+          <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">
+              📊 クライアント別 出荷実績
+            </h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b-2 border-gray-200 text-gray-500 text-xs uppercase tracking-wider">
+                    <th className="px-4 py-2 text-left">クライアント</th>
+                    <th className="px-4 py-2 text-right">本数</th>
+                    <th className="px-4 py-2 text-right">売上金額</th>
+                    <th className="px-4 py-2 text-right">直近出荷</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {clientSales.map((row) => (
+                    <tr key={row.clientId}>
+                      <td className="px-4 py-3 font-medium text-gray-800">{row.clientName}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{row.totalCount}本</td>
+                      <td className="px-4 py-3 text-right tabular-nums font-bold text-green-700">
+                        ¥{row.totalAmount.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3 text-right text-sm text-gray-500">{row.lastShippedAt}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-gray-200 font-bold text-gray-800">
+                    <td className="px-4 py-3">合計</td>
+                    <td className="px-4 py-3 text-right tabular-nums">
+                      {clientSales.reduce((s, r) => s + r.totalCount, 0)}本
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-green-700">
+                      ¥{clientSales.reduce((s, r) => s + r.totalAmount, 0).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3"></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* アクションボタン */}
         <div className="flex flex-wrap gap-4 mb-2">
