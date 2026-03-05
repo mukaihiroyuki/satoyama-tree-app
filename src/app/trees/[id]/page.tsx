@@ -140,6 +140,12 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
             setIsReservationDialogOpen(true)
             return
         }
+        // 予約済み → 在庫に戻す場合、client_idもクリア
+        if (tree.status === 'reserved' && newStatus === 'in_stock') {
+            if (!confirm('予約を取り消して在庫に戻しますか？')) return
+            await saveEdit({ status: 'in_stock', client_id: null })
+            return
+        }
         await saveEdit({ status: newStatus })
     }
 

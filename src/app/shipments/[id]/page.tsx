@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 
@@ -14,6 +15,7 @@ interface ShipmentDetail {
     destination_name: string | null
     logistics_info: string | null
     notes: string | null
+    estimate_id: string | null
     client: { name: string } | { name: string }[] | null
     shipment_items: {
         id: string
@@ -37,8 +39,10 @@ interface SpeciesGroup {
 
 export default function ShipmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = React.use(params)
+    const router = useRouter()
     const [shipment, setShipment] = useState<ShipmentDetail | null>(null)
     const [loading, setLoading] = useState(true)
+    const [cancelling, setCancelling] = useState(false)
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
 
     useEffect(() => {
@@ -53,6 +57,7 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                     destination_name,
                     logistics_info,
                     notes,
+                    estimate_id,
                     client:clients(name),
                     shipment_items(
                         id,
@@ -113,6 +118,58 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
             }
             return next
         })
+    }
+
+    async function handleCancelShipment() {
+        if (!shipment) return
+        if (!confirm('この出荷を取り消しますか？\n対象の樹木はすべて「在庫あり」に戻ります。')) return
+
+        setCancelling(true)
+        const supabase = createClient()
+
+        try {
+            const treeIds = shipment.shipment_items
+                .map(item => item.tree?.id)
+                .filter((id): id is string => !!id)
+
+            // 1. 樹木を在庫に戻す
+            if (treeIds.length > 0) {
+                const { error } = await supabase
+                    .from('trees')
+                    .update({ status: 'in_stock' })
+                    .in('id', treeIds)
+                if (error) throw error
+            }
+
+            // 2. 出荷明細を削除
+            const { error: itemsError } = await supabase
+                .from('shipment_items')
+                .delete()
+                .eq('shipment_id', shipment.id)
+            if (itemsError) throw itemsError
+
+            // 3. 見積経由の場合、見積ステータスを「発行済」に戻す
+            if (shipment.estimate_id) {
+                await supabase
+                    .from('estimates')
+                    .update({ status: '発行済', updated_at: new Date().toISOString() })
+                    .eq('id', shipment.estimate_id)
+            }
+
+            // 4. 出荷レコードを削除
+            const { error: shipmentError } = await supabase
+                .from('shipments')
+                .delete()
+                .eq('id', shipment.id)
+            if (shipmentError) throw shipmentError
+
+            router.push('/shipments')
+        } catch (error) {
+            console.error('出荷取消エラー:', error)
+            alert('出荷取消に失敗しました')
+        } finally {
+            setCancelling(false)
+        }
     }
 
     if (loading) {
@@ -190,6 +247,15 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                         label="請求書ダウンロード"
                     />
                 </div>
+
+                {/* 出荷取消 */}
+                <button
+                    onClick={handleCancelShipment}
+                    disabled={cancelling}
+                    className="w-full bg-red-50 hover:bg-red-100 disabled:opacity-50 text-red-600 py-3 rounded-xl font-bold border border-red-200 transition-colors"
+                >
+                    {cancelling ? '取消処理中...' : '出荷を取り消す'}
+                </button>
 
                 {/* 樹種別内訳 */}
                 <div>
