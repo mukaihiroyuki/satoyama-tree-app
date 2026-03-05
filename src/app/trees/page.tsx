@@ -6,6 +6,7 @@ import Link from 'next/link'
 import ShipmentDialog from '@/components/ShipmentDialog'
 import ReservationDialog from '@/components/ReservationDialog'
 import EstimateDialog from '@/components/EstimateDialog'
+import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
 import { createClient } from '@/lib/supabase/client'
 import { useTrees } from '@/hooks/useTrees'
 
@@ -63,6 +64,7 @@ function TreesPage() {
     const [isShipmentDialogOpen, setIsShipmentDialogOpen] = useState(false)
     const [isReservationDialogOpen, setIsReservationDialogOpen] = useState(false)
     const [isEstimateDialogOpen, setIsEstimateDialogOpen] = useState(false)
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
 
     // 成功時のリフレッシュ
     const handleShipmentSuccess = () => {
@@ -197,37 +199,8 @@ function TreesPage() {
         }
     }
 
-    // 一括削除（3段階確認）
-    async function handleBulkDelete() {
-        if (selectedIds.length === 0) return
-
-        // 選択中のクライアント名を取得
-        const clientNames = [...new Set(
-            selectedTreesFiltered.map(t => t.client?.name).filter(Boolean)
-        )]
-        const clientLabel = clientNames.length > 0 ? clientNames.join('、') : '未設定'
-
-        // 1段目
-        if (!confirm(
-            `${selectedIds.length} 本の樹木を削除します。\n\n` +
-            `クライアント: ${clientLabel}\n` +
-            `関連する見積明細・出荷明細も削除されます。`
-        )) return
-
-        // 2段目
-        if (!confirm(
-            `本当に削除してよいですか？\n\n` +
-            `対象: ${clientLabel} の ${selectedIds.length} 本\n` +
-            `この操作は元に戻せません。`
-        )) return
-
-        // 3段目
-        if (!confirm(
-            `最終確認です。\n\n` +
-            `${clientLabel} の ${selectedIds.length} 本を完全に削除します。\n` +
-            `本当によろしいですか？`
-        )) return
-
+    // 一括削除（3段階確認ダイアログ経由）
+    async function executeBulkDelete() {
         const supabase = createClient()
         const { error } = await supabase
             .from('trees')
@@ -239,6 +212,7 @@ function TreesPage() {
             alert('削除に失敗しました')
             return
         }
+        setIsDeleteDialogOpen(false)
         setSelectedIds([])
         refreshData()
     }
@@ -606,7 +580,7 @@ function TreesPage() {
                             </button>
                         )}
                         <button
-                            onClick={handleBulkDelete}
+                            onClick={() => setIsDeleteDialogOpen(true)}
                             className="bg-red-800 hover:bg-red-900 px-4 sm:px-6 py-2 rounded-xl font-bold transition-all active:scale-95 whitespace-nowrap text-sm sm:text-base"
                         >
                             削除
@@ -648,6 +622,22 @@ function TreesPage() {
                 selectedTrees={selectedTreesData}
                 onSuccess={handleShipmentSuccess}
                 defaultClientId={commonClientId}
+            />
+
+            {/* 削除確認ダイアログ（3段階） */}
+            <DeleteConfirmDialog
+                isOpen={isDeleteDialogOpen}
+                onClose={() => setIsDeleteDialogOpen(false)}
+                onConfirm={executeBulkDelete}
+                itemCount={selectedIds.length}
+                itemLabel={(() => {
+                    const names = [...new Set(selectedTreesFiltered.map(t => t.species?.name).filter(Boolean))]
+                    return names.length <= 3 ? names.join('・') : `${names.slice(0, 3).join('・')}他`
+                })()}
+                clientName={(() => {
+                    const names = [...new Set(selectedTreesFiltered.map(t => t.client?.name).filter(Boolean))]
+                    return names.length > 0 ? names.join('、') : '未設定'
+                })()}
             />
         </div>
     )

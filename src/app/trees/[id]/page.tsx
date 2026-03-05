@@ -10,6 +10,7 @@ import TreeEditForm from '@/components/TreeEditForm'
 import { buildSmoothPrintUrl, type TreeLabelData } from '@/lib/smoothprint'
 import ShipmentDialog from '@/components/ShipmentDialog'
 import ReservationDialog from '@/components/ReservationDialog'
+import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
 import { useTree } from '@/hooks/useTree'
 
 const statusLabels: Record<string, { label: string; color: string }> = {
@@ -27,6 +28,7 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
     const [uploading, setUploading] = useState(false)
     const [isShipmentDialogOpen, setIsShipmentDialogOpen] = useState(false)
     const [isReservationDialogOpen, setIsReservationDialogOpen] = useState(false)
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
     const [printLayout, setPrintLayout] = useState<'RJ-100' | 'PT-36' | 'PT-24'>('PT-36')
     const [printMode, setPrintMode] = useState<'airprint' | 'bluetooth'>(() => {
         if (typeof window !== 'undefined') {
@@ -149,15 +151,9 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
         await saveEdit({ status: newStatus })
     }
 
-    // 削除（オンライン専用）
-    async function handleDelete() {
+    // 削除（オンライン専用・3段階確認ダイアログ経由）
+    async function executeDelete() {
         if (!tree) return
-        if (!isOnline) {
-            alert('削除はオンライン時のみ可能です')
-            return
-        }
-        if (!confirm(`${tree.management_number || ''} ${tree.species?.name} を削除しますか？`)) return
-
         const supabase = createClient()
         const { error } = await supabase
             .from('trees')
@@ -170,7 +166,8 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
             return
         }
 
-        router.push('/trees')
+        setIsDeleteDialogOpen(false)
+        router.back()
     }
 
     if (loading) {
@@ -347,7 +344,13 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
                 {/* 削除ボタン（出荷済みは出荷履歴を保護するため削除不可） */}
                 {tree.status !== 'shipped' && (
                     <button
-                        onClick={handleDelete}
+                        onClick={() => {
+                            if (!isOnline) {
+                                alert('削除はオンライン時のみ可能です')
+                                return
+                            }
+                            setIsDeleteDialogOpen(true)
+                        }}
                         disabled={!isOnline}
                         className="w-full bg-red-50 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed text-red-600 py-3 rounded-lg font-semibold border border-red-200"
                     >
@@ -382,6 +385,16 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
                     price: tree.price,
                 }]}
                 onSuccess={refreshData}
+            />
+
+            {/* 削除確認ダイアログ（3段階） */}
+            <DeleteConfirmDialog
+                isOpen={isDeleteDialogOpen}
+                onClose={() => setIsDeleteDialogOpen(false)}
+                onConfirm={executeDelete}
+                itemCount={1}
+                itemLabel={`${tree.management_number || ''} ${tree.species?.name || ''}`}
+                clientName={tree.client?.name || '未設定'}
             />
 
             {/* 印刷用ラベル（画面上は隠れ、印刷時だけ見える） */}
