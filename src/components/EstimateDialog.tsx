@@ -15,9 +15,10 @@ interface EstimateDialogProps {
     onClose: () => void
     selectedTrees: { id: string; management_number: string | null; species_name: string; price: number }[]
     onSuccess: () => void
+    defaultClientId?: string
 }
 
-export default function EstimateDialog({ isOpen, onClose, selectedTrees, onSuccess }: EstimateDialogProps) {
+export default function EstimateDialog({ isOpen, onClose, selectedTrees, onSuccess, defaultClientId }: EstimateDialogProps) {
     const [clients, setClients] = useState<Client[]>([])
     const [selectedClientId, setSelectedClientId] = useState('')
     const [rate, setRate] = useState(1)
@@ -33,7 +34,11 @@ export default function EstimateDialog({ isOpen, onClose, selectedTrees, onSucce
             const supabase = createClient()
             const { data } = await supabase.from('clients').select('id, name, default_rate').order('name')
             setClients(data || [])
-            if (data && data.length > 0 && !selectedClientId) {
+            if (defaultClientId) {
+                setSelectedClientId(defaultClientId)
+                const defaultClient = data?.find(c => c.id === defaultClientId)
+                setRate(defaultClient?.default_rate ?? 1)
+            } else if (data && data.length > 0 && !selectedClientId) {
                 setSelectedClientId(data[0].id)
                 setRate(data[0].default_rate ?? 1)
             }
@@ -41,7 +46,7 @@ export default function EstimateDialog({ isOpen, onClose, selectedTrees, onSucce
         if (isOpen) {
             fetchClients()
         }
-    }, [isOpen, selectedClientId])
+    }, [isOpen, selectedClientId, defaultClientId])
 
     async function handleAddClient() {
         if (!newClientName) return

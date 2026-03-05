@@ -14,9 +14,10 @@ interface ReservationDialogProps {
     selectedIds: string[]
     selectedTrees: { id: string; management_number: string | null; species_name: string; price: number }[]
     onSuccess: () => void
+    defaultClientId?: string
 }
 
-export default function ReservationDialog({ isOpen, onClose, selectedIds, selectedTrees, onSuccess }: ReservationDialogProps) {
+export default function ReservationDialog({ isOpen, onClose, selectedIds, selectedTrees, onSuccess, defaultClientId }: ReservationDialogProps) {
     const [clients, setClients] = useState<Client[]>([])
     const [selectedClientId, setSelectedClientId] = useState('')
     const [notes, setNotes] = useState('')
@@ -30,14 +31,16 @@ export default function ReservationDialog({ isOpen, onClose, selectedIds, select
             const supabase = createClient()
             const { data } = await supabase.from('clients').select('id, name').order('name')
             setClients(data || [])
-            if (data && data.length > 0 && !selectedClientId) {
+            if (defaultClientId) {
+                setSelectedClientId(defaultClientId)
+            } else if (data && data.length > 0 && !selectedClientId) {
                 setSelectedClientId(data[0].id)
             }
         }
         if (isOpen) {
             fetchClients()
         }
-    }, [isOpen, selectedClientId])
+    }, [isOpen, selectedClientId, defaultClientId])
 
     async function handleAddClient() {
         if (!newClientName) return

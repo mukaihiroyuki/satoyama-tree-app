@@ -71,19 +71,20 @@ export default function TreesPage() {
         )
     }
 
-    const selectedTreesData = trees
-        .filter(t => selectedIds.includes(t.id))
-        .map(t => ({
-            id: t.id,
-            management_number: t.management_number,
-            species_name: t.species?.name || '不明',
-            price: t.price
-        }))
+    const selectedTreesFiltered = trees.filter(t => selectedIds.includes(t.id))
+    const selectedTreesData = selectedTreesFiltered.map(t => ({
+        id: t.id,
+        management_number: t.management_number,
+        species_name: t.species?.name || '不明',
+        price: t.price
+    }))
+
+    // 選択した木が全部同じクライアントならそのIDを取得
+    const selectedClientIds = [...new Set(selectedTreesFiltered.map(t => t.client_id).filter(Boolean))]
+    const commonClientId = selectedClientIds.length === 1 ? selectedClientIds[0] as string : undefined
 
     // 選択中の木のステータス判定
-    const selectedStatuses = new Set(
-        trees.filter(t => selectedIds.includes(t.id)).map(t => t.status)
-    )
+    const selectedStatuses = new Set(selectedTreesFiltered.map(t => t.status))
     const hasReserved = selectedStatuses.has('reserved')
     const hasShipped = selectedStatuses.has('shipped')
 
@@ -543,6 +544,7 @@ export default function TreesPage() {
                 selectedIds={selectedIds}
                 selectedTrees={selectedTreesData}
                 onSuccess={handleShipmentSuccess}
+                defaultClientId={commonClientId}
             />
 
             {/* 出荷ダイアログ */}
@@ -552,6 +554,7 @@ export default function TreesPage() {
                 selectedIds={selectedIds}
                 selectedTrees={selectedTreesData}
                 onSuccess={handleShipmentSuccess}
+                defaultClientId={commonClientId}
             />
 
             {/* 見積ダイアログ */}
@@ -560,6 +563,7 @@ export default function TreesPage() {
                 onClose={() => setIsEstimateDialogOpen(false)}
                 selectedTrees={selectedTreesData}
                 onSuccess={handleShipmentSuccess}
+                defaultClientId={commonClientId}
             />
         </div>
     )
