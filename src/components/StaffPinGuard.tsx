@@ -103,11 +103,11 @@ export default function StaffPinGuard({ children }: StaffPinGuardProps) {
     // ログイン済み：子コンポーネントを表示 + スタッフバー
     return (
         <div>
-            <div className="bg-green-700 text-white text-xs py-1 px-4 flex justify-between items-center">
-                <span className="font-bold">{staffName}</span>
+            <div className="bg-green-700 text-white text-sm py-2 px-4 flex justify-between items-center">
+                <span className="font-black">{staffName} でログイン中</span>
                 <button
                     onClick={logout}
-                    className="text-green-200 hover:text-white font-bold"
+                    className="text-green-200 hover:text-white font-bold bg-green-800 px-3 py-0.5 rounded"
                 >
                     切替
                 </button>
