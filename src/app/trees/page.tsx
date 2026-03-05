@@ -5,6 +5,7 @@ import Link from 'next/link'
 import ShipmentDialog from '@/components/ShipmentDialog'
 import ReservationDialog from '@/components/ReservationDialog'
 import EstimateDialog from '@/components/EstimateDialog'
+import { createClient } from '@/lib/supabase/client'
 import { useTrees } from '@/hooks/useTrees'
 
 const statusLabels: Record<string, { label: string; color: string }> = {
@@ -78,6 +79,90 @@ export default function TreesPage() {
             species_name: t.species?.name || '不明',
             price: t.price
         }))
+
+    // 選択中の木のステータス判定
+    const selectedStatuses = new Set(
+        trees.filter(t => selectedIds.includes(t.id)).map(t => t.status)
+    )
+    const hasReserved = selectedStatuses.has('reserved')
+    const hasShipped = selectedStatuses.has('shipped')
+
+    // 予約取消
+    async function handleCancelReservation() {
+        const reservedIds = trees
+            .filter(t => selectedIds.includes(t.id) && t.status === 'reserved')
+            .map(t => t.id)
+        if (reservedIds.length === 0) return
+        if (!confirm(`${reservedIds.length} 本の予約を取り消して在庫に戻しますか？`)) return
+
+        const supabase = createClient()
+        const { error } = await supabase
+            .from('trees')
+            .update({ status: 'in_stock', client_id: null })
+            .in('id', reservedIds)
+
+        if (error) {
+            console.error('予約取消エラー:', error)
+            alert('予約取消に失敗しました')
+            return
+        }
+        setSelectedIds([])
+        refreshData()
+    }
+
+    // 出荷取消
+    async function handleCancelShipment() {
+        const shippedIds = trees
+            .filter(t => selectedIds.includes(t.id) && t.status === 'shipped')
+            .map(t => t.id)
+        if (shippedIds.length === 0) return
+        if (!confirm(`${shippedIds.length} 本の出荷を取り消して在庫に戻しますか？\n（出荷明細からも削除されます）`)) return
+
+        const supabase = createClient()
+        try {
+            // 1. 該当する出荷明細を取得（どの出荷に属しているか）
+            const { data: items, error: fetchError } = await supabase
+                .from('shipment_items')
+                .select('id, shipment_id')
+                .in('tree_id', shippedIds)
+            if (fetchError) throw fetchError
+
+            // 2. 出荷明細を削除
+            if (items && items.length > 0) {
+                const itemIds = items.map(i => i.id)
+                const { error: deleteError } = await supabase
+                    .from('shipment_items')
+                    .delete()
+                    .in('id', itemIds)
+                if (deleteError) throw deleteError
+
+                // 3. 空になった出荷レコードを削除
+                const affectedShipmentIds = [...new Set(items.map(i => i.shipment_id))]
+                for (const shipmentId of affectedShipmentIds) {
+                    const { count } = await supabase
+                        .from('shipment_items')
+                        .select('id', { count: 'exact', head: true })
+                        .eq('shipment_id', shipmentId)
+                    if (count === 0) {
+                        await supabase.from('shipments').delete().eq('id', shipmentId)
+                    }
+                }
+            }
+
+            // 4. 樹木を在庫に戻す
+            const { error: updateError } = await supabase
+                .from('trees')
+                .update({ status: 'in_stock' })
+                .in('id', shippedIds)
+            if (updateError) throw updateError
+
+            setSelectedIds([])
+            refreshData()
+        } catch (error) {
+            console.error('出荷取消エラー:', error)
+            alert('出荷取消に失敗しました')
+        }
+    }
 
     // CSVダウンロード機能
     const downloadCSV = () => {
@@ -425,6 +510,22 @@ export default function TreesPage() {
                         >
                             出荷
                         </button>
+                        {hasReserved && (
+                            <button
+                                onClick={handleCancelReservation}
+                                className="bg-orange-600 hover:bg-orange-700 px-4 sm:px-6 py-2 rounded-xl font-bold transition-all active:scale-95 whitespace-nowrap text-sm sm:text-base"
+                            >
+                                予約取消
+                            </button>
+                        )}
+                        {hasShipped && (
+                            <button
+                                onClick={handleCancelShipment}
+                                className="bg-red-600 hover:bg-red-700 px-4 sm:px-6 py-2 rounded-xl font-bold transition-all active:scale-95 whitespace-nowrap text-sm sm:text-base"
+                            >
+                                出荷取消
+                            </button>
+                        )}
                         <button
                             onClick={() => setSelectedIds([])}
                             className="text-green-300 hover:text-white transition-colors text-sm sm:text-base px-2 py-2"

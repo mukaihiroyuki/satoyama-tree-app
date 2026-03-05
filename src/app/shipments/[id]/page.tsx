@@ -120,6 +120,47 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
         })
     }
 
+    // 個別の木を出荷から取り消す
+    async function handleCancelItem(itemId: string, treeId: string | undefined) {
+        if (!shipment) return
+        if (!confirm('この樹木を出荷から取り消しますか？')) return
+
+        const supabase = createClient()
+        try {
+            // 1. 出荷明細を削除
+            const { error: deleteError } = await supabase
+                .from('shipment_items')
+                .delete()
+                .eq('id', itemId)
+            if (deleteError) throw deleteError
+
+            // 2. 樹木を在庫に戻す
+            if (treeId) {
+                await supabase
+                    .from('trees')
+                    .update({ status: 'in_stock' })
+                    .eq('id', treeId)
+            }
+
+            // 3. 残り明細が0なら出荷レコードも削除
+            const { count } = await supabase
+                .from('shipment_items')
+                .select('id', { count: 'exact', head: true })
+                .eq('shipment_id', shipment.id)
+            if (count === 0) {
+                await supabase.from('shipments').delete().eq('id', shipment.id)
+                router.push('/shipments')
+                return
+            }
+
+            // 画面をリロードして反映
+            window.location.reload()
+        } catch (error) {
+            console.error('個別取消エラー:', error)
+            alert('取消に失敗しました')
+        }
+    }
+
     async function handleCancelShipment() {
         if (!shipment) return
         if (!confirm('この出荷を取り消しますか？\n対象の樹木はすべて「在庫あり」に戻ります。')) return
@@ -301,6 +342,7 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                                                         <th className="px-4 py-2 text-right text-xs font-bold text-gray-400">樹高</th>
                                                         <th className="px-4 py-2 text-right text-xs font-bold text-gray-400">本立ち</th>
                                                         <th className="px-4 py-2 text-right text-xs font-bold text-gray-400">単価</th>
+                                                        <th className="px-4 py-2 text-right text-xs font-bold text-gray-400"></th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-gray-50">
@@ -327,6 +369,17 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                                                             </td>
                                                             <td className="px-4 py-2.5 text-right font-bold text-gray-800">
                                                                 &yen;{(item.unit_price || 0).toLocaleString()}
+                                                            </td>
+                                                            <td className="px-4 py-2.5 text-right">
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation()
+                                                                        handleCancelItem(item.id, item.tree?.id)
+                                                                    }}
+                                                                    className="text-xs text-red-500 hover:text-red-700 font-bold"
+                                                                >
+                                                                    取消
+                                                                </button>
                                                             </td>
                                                         </tr>
                                                     ))}
