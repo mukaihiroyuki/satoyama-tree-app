@@ -188,11 +188,24 @@ export default function TreeEditForm({ tree, isOnline, saveMessage, onSave }: Tr
                     <label className="block text-sm text-gray-500 mb-1">上代 (円)</label>
                     <input
                         type="number"
-                        step="1000"
+                        step="1"
                         value={price}
                         onChange={(e) => setPrice(e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-lg"
+                        className={`w-full border rounded-lg px-3 py-2 text-lg ${
+                            price && parseInt(price) > 0 && parseInt(price) < 10000
+                                ? 'border-orange-400 bg-orange-50'
+                                : 'border-gray-300'
+                        }`}
                     />
+                    {price && parseInt(price) > 0 && parseInt(price) < 10000 && (
+                        <div className="mt-1 bg-orange-100 border-2 border-orange-400 rounded-lg p-3 flex items-start gap-2">
+                            <span className="text-2xl">⚠️</span>
+                            <div>
+                                <p className="font-black text-orange-800">¥{parseInt(price).toLocaleString()}</p>
+                                <p className="font-bold text-orange-700 text-xs">1万円未満です。入力ミスではありませんか？</p>
+                            </div>
+                        </div>
+                    )}
                 </div>
                 <div>
                     <label className="block text-sm text-gray-500 mb-1">場所</label>

@@ -318,14 +318,31 @@ export default function NewTreePage() {
                         <input
                             type="number"
                             min="0"
-                            step="1000"
+                            step="1"
                             required
                             value={formData.price}
                             onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                             placeholder="10万超はここに入力（例: 120000）"
-                            className="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                            className={`w-full border rounded-lg px-4 py-3 text-lg focus:ring-2 outline-none ${
+                                formData.price && parseInt(formData.price) > 0 && parseInt(formData.price) < 10000
+                                    ? 'border-orange-400 focus:ring-orange-500 bg-orange-50'
+                                    : 'border-gray-300 focus:ring-green-500 focus:border-green-500'
+                            }`}
                         />
-                        {formData.price && parseInt(formData.price) > 0 && (
+                        {formData.price && parseInt(formData.price) > 0 && parseInt(formData.price) < 10000 && (
+                            <div className="bg-orange-100 border-2 border-orange-400 rounded-xl p-4 flex items-start gap-3">
+                                <span className="text-3xl">⚠️</span>
+                                <div>
+                                    <p className="font-black text-orange-800 text-lg">
+                                        上代が ¥{parseInt(formData.price).toLocaleString()} です
+                                    </p>
+                                    <p className="font-bold text-orange-700 text-sm mt-1">
+                                        通常、1万円未満の樹木はほとんどありません。入力ミスではありませんか？
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                        {formData.price && parseInt(formData.price) >= 10000 && (
                             <p className="text-sm font-bold text-green-700">
                                 &yen;{parseInt(formData.price).toLocaleString()}
                             </p>
