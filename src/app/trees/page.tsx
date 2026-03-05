@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import ShipmentDialog from '@/components/ShipmentDialog'
 import ReservationDialog from '@/components/ReservationDialog'
@@ -15,16 +16,47 @@ const statusLabels: Record<string, { label: string; color: string }> = {
     dead: { label: '枯死', color: 'bg-gray-100 text-gray-800' },
 }
 
-export default function TreesPage() {
-    const { trees, species, locations, loading, isOnline, pendingCount, refreshData } = useTrees()
+export default function TreesPageWrapper() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center">
+                <p className="text-green-700">読み込み中...</p>
+            </div>
+        }>
+            <TreesPage />
+        </Suspense>
+    )
+}
 
-    // フィルター状態
-    const [speciesFilter, setSpeciesFilter] = useState('')
-    const [locationFilter, setLocationFilter] = useState('')
-    const [statusFilter, setStatusFilter] = useState('in_stock')
-    const [clientFilter, setClientFilter] = useState('')
-    const [shippedAtFilter, setShippedAtFilter] = useState('')
-    const [estimateNumberFilter, setEstimateNumberFilter] = useState('')
+function TreesPage() {
+    const { trees, species, locations, loading, isOnline, pendingCount, refreshData } = useTrees()
+    const router = useRouter()
+    const searchParams = useSearchParams()
+
+    // フィルター状態（URLクエリパラメータから初期値を復元）
+    const [speciesFilter, setSpeciesFilter] = useState(searchParams.get('species') || '')
+    const [locationFilter, setLocationFilter] = useState(searchParams.get('location') || '')
+    const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'in_stock')
+    const [clientFilter, setClientFilter] = useState(searchParams.get('client') || '')
+    const [shippedAtFilter, setShippedAtFilter] = useState(searchParams.get('shipped_at') || '')
+    const [estimateNumberFilter, setEstimateNumberFilter] = useState(searchParams.get('estimate') || '')
+
+    // フィルター変更時にURLを同期
+    const syncFiltersToUrl = useCallback(() => {
+        const params = new URLSearchParams()
+        if (speciesFilter) params.set('species', speciesFilter)
+        if (locationFilter) params.set('location', locationFilter)
+        if (statusFilter && statusFilter !== 'in_stock') params.set('status', statusFilter)
+        if (clientFilter) params.set('client', clientFilter)
+        if (shippedAtFilter) params.set('shipped_at', shippedAtFilter)
+        if (estimateNumberFilter) params.set('estimate', estimateNumberFilter)
+        const qs = params.toString()
+        router.replace(`/trees${qs ? `?${qs}` : ''}`, { scroll: false })
+    }, [speciesFilter, locationFilter, statusFilter, clientFilter, shippedAtFilter, estimateNumberFilter, router])
+
+    useEffect(() => {
+        syncFiltersToUrl()
+    }, [syncFiltersToUrl])
 
     // 選択状態
     const [selectedIds, setSelectedIds] = useState<string[]>([])
