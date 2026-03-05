@@ -165,6 +165,26 @@ export default function TreesPage() {
         }
     }
 
+    // 一括削除
+    async function handleBulkDelete() {
+        if (selectedIds.length === 0) return
+        if (!confirm(`${selectedIds.length} 本の樹木を削除しますか？\n（関連する見積明細・出荷明細も削除されます）`)) return
+
+        const supabase = createClient()
+        const { error } = await supabase
+            .from('trees')
+            .delete()
+            .in('id', selectedIds)
+
+        if (error) {
+            console.error('一括削除エラー:', error)
+            alert('削除に失敗しました')
+            return
+        }
+        setSelectedIds([])
+        refreshData()
+    }
+
     // CSVダウンロード機能
     const downloadCSV = () => {
         const headers = ["管理番号", "樹種", "樹高(m)", "本立ち", "上代(円)", "状態", "場所", "クライアント", "出荷日", "見積り番号", "入荷日", "備考"]
@@ -527,6 +547,12 @@ export default function TreesPage() {
                                 出荷取消
                             </button>
                         )}
+                        <button
+                            onClick={handleBulkDelete}
+                            className="bg-red-800 hover:bg-red-900 px-4 sm:px-6 py-2 rounded-xl font-bold transition-all active:scale-95 whitespace-nowrap text-sm sm:text-base"
+                        >
+                            削除
+                        </button>
                         <button
                             onClick={() => setSelectedIds([])}
                             className="text-green-300 hover:text-white transition-colors text-sm sm:text-base px-2 py-2"
