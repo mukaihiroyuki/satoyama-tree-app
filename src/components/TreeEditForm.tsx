@@ -47,6 +47,14 @@ export default function TreeEditForm({ tree, isOnline, saveMessage, onSave }: Tr
     }
 
     async function handleSave() {
+        // 1万円未満の価格アラート
+        const priceCheck = parseInt(price, 10)
+        if (!isNaN(priceCheck) && priceCheck < 10000) {
+            if (!confirm(`上代が ¥${priceCheck.toLocaleString()} です。\n1万円未満ですが、この金額で保存しますか？`)) {
+                return
+            }
+        }
+
         setSaving(true)
 
         const updates: Record<string, string | number | null> = {}

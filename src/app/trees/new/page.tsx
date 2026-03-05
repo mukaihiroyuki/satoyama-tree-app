@@ -56,6 +56,15 @@ export default function NewTreePage() {
     // フォーム送信
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
+
+        // 1万円未満の価格アラート
+        const priceValue = parseInt(formData.price)
+        if (!isNaN(priceValue) && priceValue < 10000) {
+            if (!confirm(`上代が ¥${priceValue.toLocaleString()} です。\n1万円未満ですが、この金額で登録しますか？`)) {
+                return
+            }
+        }
+
         setLoading(true)
         setError(null)
 
