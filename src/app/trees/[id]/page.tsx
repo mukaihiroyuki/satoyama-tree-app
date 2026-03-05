@@ -11,7 +11,9 @@ import { buildSmoothPrintUrl, type TreeLabelData } from '@/lib/smoothprint'
 import ShipmentDialog from '@/components/ShipmentDialog'
 import ReservationDialog from '@/components/ReservationDialog'
 import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
+import ActivityLogList from '@/components/ActivityLogList'
 import { useTree } from '@/hooks/useTree'
+import { logActivity } from '@/lib/activity-log'
 
 const statusLabels: Record<string, { label: string; color: string }> = {
     in_stock: { label: '在庫あり', color: 'bg-green-100 text-green-800 border-green-300' },
@@ -146,6 +148,7 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
         if (tree.status === 'reserved' && newStatus === 'in_stock') {
             if (!confirm('予約を取り消して在庫に戻しますか？')) return
             await saveEdit({ status: 'in_stock', client_id: null })
+            await logActivity('cancel_reserve', tree.id)
             return
         }
         await saveEdit({ status: newStatus })
@@ -166,6 +169,7 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
             return
         }
 
+        await logActivity('delete', tree.id, { management_number: tree.management_number })
         setIsDeleteDialogOpen(false)
         router.back()
     }
@@ -340,6 +344,9 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
                         </div>
                     </dl>
                 </div>
+
+                {/* 操作履歴 */}
+                <ActivityLogList treeId={tree.id} />
 
                 {/* 削除ボタン（出荷済みは出荷履歴を保護するため削除不可） */}
                 {tree.status !== 'shipped' && (

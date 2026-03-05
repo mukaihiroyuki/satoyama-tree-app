@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import type { CachedTree } from '@/lib/db'
+import { logActivity } from '@/lib/activity-log'
 
 interface TreeEditFormProps {
     tree: CachedTree
@@ -71,6 +72,7 @@ export default function TreeEditForm({ tree, isOnline, saveMessage, onSave }: Tr
 
         if (Object.keys(updates).length > 0) {
             await onSave(updates)
+            await logActivity('edit', tree.id, updates)
         }
 
         setSaving(false)

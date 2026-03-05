@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import { logActivity, logActivityBulk } from '@/lib/activity-log'
 
 const PdfDownloadButton = dynamic(() => import('@/components/PdfDownloadButton'), { ssr: false })
 
@@ -142,6 +143,8 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                     .eq('id', treeId)
             }
 
+            if (treeId) await logActivity('cancel_ship', treeId)
+
             // 3. 残り明細が0なら出荷レコードも削除
             const { count } = await supabase
                 .from('shipment_items')
@@ -204,6 +207,7 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                 .eq('id', shipment.id)
             if (shipmentError) throw shipmentError
 
+            await logActivityBulk('cancel_ship', treeIds)
             router.push('/shipments')
         } catch (error) {
             console.error('出荷取消エラー:', error)

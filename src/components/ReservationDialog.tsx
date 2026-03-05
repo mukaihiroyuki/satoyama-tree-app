@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { logActivityBulk } from '@/lib/activity-log'
 
 interface Client {
     id: string
@@ -83,6 +84,7 @@ export default function ReservationDialog({ isOpen, onClose, selectedIds, select
 
             if (error) throw error
 
+            await logActivityBulk('reserve', selectedIds)
             onSuccess()
             onClose()
         } catch (error) {

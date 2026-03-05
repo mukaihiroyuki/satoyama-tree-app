@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getAllSpecies, registerTreeOffline } from '@/lib/tree-repository'
+import { logActivity } from '@/lib/activity-log'
 
 interface Species {
     id: string
@@ -152,6 +153,7 @@ export default function NewTreePage() {
                 return
             }
 
+            await logActivity('create', newTree.id, { management_number: managementNumber })
             router.replace(`/trees/${newTree.id}`)
             return
         } catch {

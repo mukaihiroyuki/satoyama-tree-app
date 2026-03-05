@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ASSIGNEES } from '@/lib/constants'
+import { logActivityBulk } from '@/lib/activity-log'
 
 interface Client {
     id: string
@@ -114,6 +115,7 @@ export default function EstimateDialog({ isOpen, onClose, selectedTrees, onSucce
             const { error: itemsError } = await supabase.from('estimate_items').insert(items)
             if (itemsError) throw itemsError
 
+            await logActivityBulk('estimate', selectedTrees.map(t => t.id))
             onSuccess()
             onClose()
         } catch (error) {

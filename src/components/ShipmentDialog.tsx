@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { logActivityBulk } from '@/lib/activity-log'
 
 interface Client {
     id: string
@@ -115,6 +116,7 @@ export default function ShipmentDialog({ isOpen, onClose, selectedIds, selectedT
                     .eq('id', estimateId)
             }
 
+            await logActivityBulk('ship', selectedIds)
             onSuccess()
             onClose()
         } catch (error) {

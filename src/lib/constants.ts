@@ -7,10 +7,14 @@ export const COMPANY_INFO = {
   fax: "0178-20-1217",
 } as const;
 
-export const ASSIGNEES = [
-  "橋本忍",
-  "向中野大志",
-  "小笠原久美子",
-  "細越未紀",
-  "橋本渚",
+export const STAFF = [
+  { name: "橋本忍", pin: "0001" },
+  { name: "向中野大志", pin: "0002" },
+  { name: "小笠原久美子", pin: "0003" },
+  { name: "細越未紀", pin: "0004" },
+  { name: "橋本渚", pin: "0005" },
+  { name: "田中俊宏", pin: "0006" },
+  { name: "中村勉", pin: "0007" },
 ] as const;
+
+export const ASSIGNEES = STAFF.map(s => s.name);

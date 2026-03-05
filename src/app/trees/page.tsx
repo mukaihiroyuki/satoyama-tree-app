@@ -9,6 +9,7 @@ import EstimateDialog from '@/components/EstimateDialog'
 import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
 import { createClient } from '@/lib/supabase/client'
 import { useTrees } from '@/hooks/useTrees'
+import { logActivityBulk } from '@/lib/activity-log'
 
 const statusLabels: Record<string, { label: string; color: string }> = {
     in_stock: { label: '在庫あり', color: 'bg-green-100 text-green-800' },
@@ -141,6 +142,7 @@ function TreesPage() {
             alert('予約取消に失敗しました')
             return
         }
+        await logActivityBulk('cancel_reserve', reservedIds)
         setSelectedIds([])
         refreshData()
     }
@@ -191,6 +193,7 @@ function TreesPage() {
                 .in('id', shippedIds)
             if (updateError) throw updateError
 
+            await logActivityBulk('cancel_ship', shippedIds)
             setSelectedIds([])
             refreshData()
         } catch (error) {
@@ -212,6 +215,7 @@ function TreesPage() {
             alert('削除に失敗しました')
             return
         }
+        await logActivityBulk('delete', selectedIds)
         setIsDeleteDialogOpen(false)
         setSelectedIds([])
         refreshData()
