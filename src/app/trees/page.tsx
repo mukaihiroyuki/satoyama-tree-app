@@ -530,7 +530,7 @@ export default function TreesPage() {
                             onClick={() => setSelectedIds([])}
                             className="text-green-300 hover:text-white transition-colors text-sm sm:text-base px-2 py-2"
                         >
-                            × 停止
+                            × 選択解除
                         </button>
                     </div>
                 </div>
