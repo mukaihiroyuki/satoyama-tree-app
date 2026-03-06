@@ -9,6 +9,7 @@ interface Shipment {
     shipped_at: string
     notes: string | null
     picking_status: string | null
+    receipt_completed_at: string | null
     client: {
         name: string
     } | { name: string }[] | null
@@ -38,6 +39,7 @@ export default function ShipmentsPage() {
                     shipped_at,
                     notes,
                     picking_status,
+                    receipt_completed_at,
                     client:clients(name),
                     shipment_items(id, unit_price)
                 `)
@@ -92,6 +94,15 @@ export default function ShipmentsPage() {
                                                             {pickingLabels[s.picking_status].label}
                                                         </span>
                                                     )}
+                                                    {s.receipt_completed_at ? (
+                                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                                                            受入完了
+                                                        </span>
+                                                    ) : s.picking_status === 'completed' ? (
+                                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                                                            受入待ち
+                                                        </span>
+                                                    ) : null}
                                                 </div>
                                             </div>
                                         </div>

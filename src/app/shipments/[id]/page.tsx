@@ -18,7 +18,8 @@ interface ShipmentDetail {
     notes: string | null
     estimate_id: string | null
     picking_status: string | null
-    client: { name: string } | { name: string }[] | null
+    receipt_completed_at: string | null
+    client: { id: string; name: string } | { id: string; name: string }[] | null
     shipment_items: {
         id: string
         unit_price: number
@@ -46,6 +47,7 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
     const [loading, setLoading] = useState(true)
     const [cancelling, setCancelling] = useState(false)
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+    const [receivedCount, setReceivedCount] = useState(0)
 
     useEffect(() => {
         async function fetch() {
@@ -61,7 +63,8 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                     notes,
                     estimate_id,
                     picking_status,
-                    client:clients(name),
+                    receipt_completed_at,
+                    client:clients(id, name),
                     shipment_items(
                         id,
                         unit_price,
@@ -82,6 +85,23 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                 console.error('Shipment fetch error:', error)
             }
             setShipment(data as ShipmentDetail | null)
+
+            // 受入チェック済み件数を取得
+            if (data) {
+                const client = Array.isArray(data.client) ? data.client[0] : data.client
+                if (client?.id) {
+                    const itemIds = (data.shipment_items || []).map((i: { id: string }) => i.id)
+                    if (itemIds.length > 0) {
+                        const { count } = await supabase
+                            .from('client_receipts')
+                            .select('id', { count: 'exact', head: true })
+                            .eq('client_id', client.id)
+                            .in('shipment_item_id', itemIds)
+                        setReceivedCount(count || 0)
+                    }
+                }
+            }
+
             setLoading(false)
         }
         fetch()
@@ -298,6 +318,34 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                         <span className="text-green-700 font-bold">ピッキング完了・出荷確定済み</span>
                     </div>
                 )}
+
+                {/* 受入状況 */}
+                <div className={`rounded-xl p-4 border ${
+                    shipment.receipt_completed_at
+                        ? 'bg-emerald-50 border-emerald-200'
+                        : 'bg-gray-50 border-gray-200'
+                }`}>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className={`font-bold ${shipment.receipt_completed_at ? 'text-emerald-700' : 'text-gray-500'}`}>
+                                {shipment.receipt_completed_at ? '受入完了' : '受入待ち'}
+                            </p>
+                            <p className="text-sm text-gray-500 mt-0.5">
+                                {receivedCount}/{totalItems} 本チェック済み
+                                {shipment.receipt_completed_at && (
+                                    <span className="ml-2">
+                                        ({new Date(shipment.receipt_completed_at).toLocaleDateString('ja-JP')} 完了)
+                                    </span>
+                                )}
+                            </p>
+                        </div>
+                        {shipment.receipt_completed_at && receivedCount < totalItems && (
+                            <span className="text-amber-600 text-sm font-bold">
+                                {totalItems - receivedCount}本 未確認
+                            </span>
+                        )}
+                    </div>
+                </div>
 
                 {/* PDF ダウンロードボタン */}
                 <div className="flex flex-wrap gap-3">
