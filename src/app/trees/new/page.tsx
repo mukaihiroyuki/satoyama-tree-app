@@ -31,6 +31,14 @@ export default function NewTreePage() {
         location: '',
     })
 
+    // 樹種検索
+    const [speciesQuery, setSpeciesQuery] = useState('')
+    const [speciesOpen, setSpeciesOpen] = useState(false)
+    const filteredSpecies = speciesQuery
+        ? species.filter(s => s.name.includes(speciesQuery))
+        : species
+    const selectedSpeciesName = species.find(s => s.id === formData.species_id)?.name || ''
+
     // 樹種一覧を取得（オフライン時はIndexedDBキャッシュから）
     useEffect(() => {
         getAllSpecies().then(data => {
@@ -57,6 +65,12 @@ export default function NewTreePage() {
     // フォーム送信
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
+
+        // 樹種未選択チェック
+        if (!isNewSpecies && !formData.species_id) {
+            setError('樹種を選択してください')
+            return
+        }
 
         // 1万円未満の価格アラート
         const priceValue = parseInt(formData.price)
@@ -238,17 +252,70 @@ export default function NewTreePage() {
                                 className="w-full border-2 border-blue-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-blue-500 outline-none"
                             />
                         ) : (
-                            <select
-                                required
-                                value={formData.species_id}
-                                onChange={(e) => setFormData({ ...formData, species_id: e.target.value })}
-                                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white"
-                            >
-                                <option value="">選択してください</option>
-                                {species.map((s) => (
-                                    <option key={s.id} value={s.id}>{s.name}</option>
-                                ))}
-                            </select>
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    value={speciesOpen ? speciesQuery : selectedSpeciesName}
+                                    onChange={(e) => {
+                                        setSpeciesQuery(e.target.value)
+                                        setSpeciesOpen(true)
+                                        if (!e.target.value) {
+                                            setFormData(prev => ({ ...prev, species_id: '' }))
+                                        }
+                                    }}
+                                    onFocus={() => {
+                                        setSpeciesOpen(true)
+                                        setSpeciesQuery('')
+                                    }}
+                                    onBlur={() => {
+                                        // 少し遅延させてクリックイベントを拾えるようにする
+                                        setTimeout(() => setSpeciesOpen(false), 200)
+                                    }}
+                                    placeholder="樹種名を入力して検索"
+                                    className={`w-full border rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white ${
+                                        formData.species_id ? 'border-green-500' : 'border-gray-300'
+                                    }`}
+                                />
+                                {formData.species_id && !speciesOpen && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setFormData(prev => ({ ...prev, species_id: '' }))
+                                            setSpeciesQuery('')
+                                        }}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg"
+                                    >
+                                        ✕
+                                    </button>
+                                )}
+                                {speciesOpen && (
+                                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                        {filteredSpecies.length === 0 ? (
+                                            <div className="px-4 py-3 text-gray-400 text-sm">該当なし</div>
+                                        ) : (
+                                            filteredSpecies.map(s => (
+                                                <button
+                                                    key={s.id}
+                                                    type="button"
+                                                    onMouseDown={(e) => e.preventDefault()}
+                                                    onClick={() => {
+                                                        setFormData(prev => ({ ...prev, species_id: s.id }))
+                                                        setSpeciesQuery('')
+                                                        setSpeciesOpen(false)
+                                                    }}
+                                                    className={`w-full text-left px-4 py-3 text-lg hover:bg-green-50 transition-colors ${
+                                                        formData.species_id === s.id ? 'bg-green-50 text-green-700 font-bold' : 'text-gray-800'
+                                                    }`}
+                                                >
+                                                    {s.name}
+                                                </button>
+                                            ))
+                                        )}
+                                    </div>
+                                )}
+                                {/* hidden input for form validation */}
+                                <input type="hidden" required value={formData.species_id} />
+                            </div>
                         )}
                     </div>
 
