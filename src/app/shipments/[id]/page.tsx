@@ -17,6 +17,7 @@ interface ShipmentDetail {
     logistics_info: string | null
     notes: string | null
     estimate_id: string | null
+    picking_status: string | null
     client: { name: string } | { name: string }[] | null
     shipment_items: {
         id: string
@@ -59,6 +60,7 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                     logistics_info,
                     notes,
                     estimate_id,
+                    picking_status,
                     client:clients(name),
                     shipment_items(
                         id,
@@ -278,6 +280,24 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                         </div>
                     )}
                 </div>
+
+                {/* ピッキング */}
+                {shipment.picking_status !== 'completed' && (
+                    <Link
+                        href={`/shipments/${shipment.id}/picking`}
+                        className="block w-full bg-amber-500 hover:bg-amber-600 text-white text-center py-4 rounded-xl font-black text-lg shadow-lg transition-all active:scale-95"
+                    >
+                        {shipment.picking_status === 'in_progress'
+                            ? `ピッキング再開（途中）`
+                            : 'ピッキング開始'
+                        }
+                    </Link>
+                )}
+                {shipment.picking_status === 'completed' && (
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+                        <span className="text-green-700 font-bold">ピッキング完了・出荷確定済み</span>
+                    </div>
+                )}
 
                 {/* PDF ダウンロードボタン */}
                 <div className="flex flex-wrap gap-3">

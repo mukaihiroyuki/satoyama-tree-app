@@ -8,6 +8,7 @@ interface Shipment {
     id: string
     shipped_at: string
     notes: string | null
+    picking_status: string | null
     client: {
         name: string
     } | { name: string }[] | null
@@ -15,6 +16,12 @@ interface Shipment {
         id: string
         unit_price: number
     }[]
+}
+
+const pickingLabels: Record<string, { label: string; color: string }> = {
+    pending: { label: '出荷指示済', color: 'bg-yellow-100 text-yellow-700' },
+    in_progress: { label: 'ピッキング中', color: 'bg-amber-100 text-amber-700' },
+    completed: { label: '出荷確定', color: 'bg-green-100 text-green-700' },
 }
 
 export default function ShipmentsPage() {
@@ -30,6 +37,7 @@ export default function ShipmentsPage() {
                     id,
                     shipped_at,
                     notes,
+                    picking_status,
                     client:clients(name),
                     shipment_items(id, unit_price)
                 `)
@@ -77,7 +85,14 @@ export default function ShipmentsPage() {
                                                 <h3 className="font-bold text-gray-800">
                                                     {Array.isArray(s.client) ? s.client[0]?.name : s.client?.name || '不明なクライアント'}
                                                 </h3>
-                                                <p className="text-xs text-gray-400 mt-0.5">{itemCount} 本の樹木</p>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    <p className="text-xs text-gray-400">{itemCount} 本</p>
+                                                    {s.picking_status && pickingLabels[s.picking_status] && (
+                                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${pickingLabels[s.picking_status].color}`}>
+                                                            {pickingLabels[s.picking_status].label}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                         <div className="text-right">
