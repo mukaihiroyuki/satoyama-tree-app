@@ -248,10 +248,11 @@ export default function ClientPortalPage({ params }: { params: Promise<{ clientI
 
     // CSVダウンロード
     function downloadCSV() {
-        const headers = ['管理番号', '樹種', '樹高(m)', '本立ち', ...(client?.portal_show_price ? ['単価(円)'] : []), '出荷日', '受入']
+        const headers = ['管理番号', '樹種', '備考', '樹高(m)', '本立ち', ...(client?.portal_show_price ? ['単価(円)'] : []), '出荷日', '受入']
         const rows = trees.map(t => [
             t.management_number || '-',
             t.species_name,
+            t.notes || '',
             String(t.height),
             String(t.trunk_count),
             ...(client?.portal_show_price ? [String(t.unit_price)] : []),
