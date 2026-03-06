@@ -11,6 +11,8 @@ interface Client {
     address: string | null
     notes: string | null
     default_rate: number | null
+    portal_enabled: boolean
+    portal_show_price: boolean
 }
 
 export default function ClientsPage() {
@@ -239,14 +241,58 @@ export default function ClientsPage() {
                                         <div>{c.address || '-'}</div>
                                         <div className="text-xs text-gray-400 mt-1">{c.notes}</div>
                                     </td>
-                                    <td className="px-6 py-4">
-                                        <button
-                                            onClick={() => handleDelete(c)}
-                                            disabled={deleting === c.id}
-                                            className="text-red-500 hover:text-red-700 text-xs font-bold"
-                                        >
-                                            {deleting === c.id ? '削除中...' : '削除'}
-                                        </button>
+                                    <td className="px-6 py-4 space-y-2">
+                                        <div className="flex items-center gap-2">
+                                            <label className="flex items-center gap-1 text-xs">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={c.portal_enabled}
+                                                    onChange={async (e) => {
+                                                        const supabase = createClient()
+                                                        await supabase.from('clients').update({ portal_enabled: e.target.checked }).eq('id', c.id)
+                                                        await fetchClients()
+                                                    }}
+                                                    className="rounded"
+                                                />
+                                                <span className="text-gray-600">ポータル</span>
+                                            </label>
+                                            {c.portal_enabled && (
+                                                <label className="flex items-center gap-1 text-xs">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={c.portal_show_price}
+                                                        onChange={async (e) => {
+                                                            const supabase = createClient()
+                                                            await supabase.from('clients').update({ portal_show_price: e.target.checked }).eq('id', c.id)
+                                                            await fetchClients()
+                                                        }}
+                                                        className="rounded"
+                                                    />
+                                                    <span className="text-gray-600">金額</span>
+                                                </label>
+                                            )}
+                                        </div>
+                                        {c.portal_enabled && (
+                                            <button
+                                                onClick={() => {
+                                                    const url = `${window.location.origin}/c/${c.id}`
+                                                    navigator.clipboard.writeText(url)
+                                                    alert(`ポータルURLをコピーしました:\n${url}`)
+                                                }}
+                                                className="text-blue-600 text-xs font-bold hover:underline"
+                                            >
+                                                URL コピー
+                                            </button>
+                                        )}
+                                        <div>
+                                            <button
+                                                onClick={() => handleDelete(c)}
+                                                disabled={deleting === c.id}
+                                                className="text-red-500 hover:text-red-700 text-xs font-bold"
+                                            >
+                                                {deleting === c.id ? '削除中...' : '削除'}
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
