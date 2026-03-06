@@ -8,6 +8,7 @@ interface ClientInfo {
     name: string
     portal_enabled: boolean
     portal_show_price: boolean
+    portal_password: string | null
 }
 
 interface DeliveredTree {
@@ -28,6 +29,9 @@ export default function ClientPortalPage({ params }: { params: Promise<{ clientI
     const [trees, setTrees] = useState<DeliveredTree[]>([])
     const [loading, setLoading] = useState(true)
     const [notFound, setNotFound] = useState(false)
+    const [authenticated, setAuthenticated] = useState(false)
+    const [pinInput, setPinInput] = useState('')
+    const [pinError, setPinError] = useState(false)
     const [scanning, setScanning] = useState(false)
     const [scanFeedback, setScanFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
     const videoRef = useRef<HTMLVideoElement>(null)
@@ -40,7 +44,7 @@ export default function ClientPortalPage({ params }: { params: Promise<{ clientI
         // クライアント情報
         const { data: clientData } = await supabase
             .from('clients')
-            .select('id, name, portal_enabled, portal_show_price')
+            .select('id, name, portal_enabled, portal_show_price, portal_password')
             .eq('id', clientId)
             .single()
 
@@ -50,6 +54,16 @@ export default function ClientPortalPage({ params }: { params: Promise<{ clientI
             return
         }
         setClient(clientData)
+
+        // パスワード認証チェック
+        if (clientData.portal_password) {
+            const sessionKey = `portal_auth_${clientId}`
+            if (sessionStorage.getItem(sessionKey) === 'true') {
+                setAuthenticated(true)
+            }
+        } else {
+            setAuthenticated(true)
+        }
 
         // 出荷済みの樹木を取得
         const { data: shipments } = await supabase
@@ -239,6 +253,57 @@ export default function ClientPortalPage({ params }: { params: Promise<{ clientI
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
                 <p className="text-gray-500">ページが見つかりません</p>
+            </div>
+        )
+    }
+
+    // パスワード認証画面
+    if (!authenticated) {
+        const handlePinSubmit = () => {
+            if (pinInput === client.portal_password) {
+                sessionStorage.setItem(`portal_auth_${clientId}`, 'true')
+                setAuthenticated(true)
+                setPinError(false)
+            } else {
+                setPinError(true)
+                setPinInput('')
+            }
+        }
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="bg-white rounded-2xl shadow-lg p-8 w-80 text-center">
+                    <div className="text-4xl mb-4">🔒</div>
+                    <h1 className="text-lg font-bold text-gray-800 mb-1">{client.name}</h1>
+                    <p className="text-sm text-gray-500 mb-6">アクセスコードを入力してください</p>
+                    <input
+                        type="password"
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={pinInput}
+                        onChange={(e) => {
+                            setPinInput(e.target.value)
+                            setPinError(false)
+                        }}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') handlePinSubmit()
+                        }}
+                        placeholder="----"
+                        className={`w-full text-center text-2xl tracking-[0.5em] border-2 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
+                            pinError ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                        }`}
+                        autoFocus
+                    />
+                    {pinError && (
+                        <p className="text-red-500 text-sm mt-2 font-bold">コードが違います</p>
+                    )}
+                    <button
+                        onClick={handlePinSubmit}
+                        disabled={!pinInput}
+                        className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 text-white py-3 rounded-xl font-bold transition-colors"
+                    >
+                        開く
+                    </button>
+                </div>
             </div>
         )
     }
