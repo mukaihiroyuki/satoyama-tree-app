@@ -35,6 +35,9 @@ export default function ClientPortalPage({ params }: { params: Promise<{ clientI
     const [pinError, setPinError] = useState(false)
     const [scanning, setScanning] = useState(false)
     const [scanFeedback, setScanFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+    const [receiptCompleted, setReceiptCompleted] = useState<string | null>(null) // timestamptz or null
+    const [shipmentIds, setShipmentIds] = useState<string[]>([])
+    const [completing, setCompleting] = useState(false)
     const videoRef = useRef<HTMLVideoElement>(null)
     const streamRef = useRef<MediaStream | null>(null)
     const scanningRef = useRef(false)
@@ -71,7 +74,9 @@ export default function ClientPortalPage({ params }: { params: Promise<{ clientI
         const { data: shipments } = await supabase
             .from('shipments')
             .select(`
+                id,
                 shipped_at,
+                receipt_completed_at,
                 shipment_items(
                     id, unit_price,
                     tree:trees(id, management_number, height, trunk_count, notes, species:species_master(name))
@@ -85,6 +90,17 @@ export default function ClientPortalPage({ params }: { params: Promise<{ clientI
             .select('shipment_item_id')
             .eq('client_id', clientId)
         const receivedSet = new Set((receipts || []).map(r => r.shipment_item_id))
+
+        // 受入完了状態と出荷IDを取得
+        const ids: string[] = []
+        let completed: string | null = null
+        for (const shipment of shipments || []) {
+            const s = shipment as unknown as { id: string; receipt_completed_at: string | null }
+            ids.push(s.id)
+            if (s.receipt_completed_at) completed = s.receipt_completed_at
+        }
+        setShipmentIds(ids)
+        setReceiptCompleted(completed)
 
         // フラット化
         const allTrees: DeliveredTree[] = []
@@ -320,6 +336,27 @@ export default function ClientPortalPage({ params }: { params: Promise<{ clientI
         )
     }
 
+    // 受入完了処理
+    async function handleCompleteReceipt() {
+        const unchecked = trees.filter(t => !t.received).length
+        const msg = unchecked > 0
+            ? `${unchecked}本が未チェックです。このまま受入を完了しますか？`
+            : '全ての樹木を確認しました。受入を完了しますか？'
+        if (!confirm(msg)) return
+
+        setCompleting(true)
+        const supabase = createClient()
+        const now = new Date().toISOString()
+        for (const shipmentId of shipmentIds) {
+            await supabase
+                .from('shipments')
+                .update({ receipt_completed_at: now })
+                .eq('id', shipmentId)
+        }
+        setReceiptCompleted(now)
+        setCompleting(false)
+    }
+
     const receivedCount = trees.filter(t => t.received).length
     const totalCount = trees.length
 
@@ -350,6 +387,16 @@ export default function ClientPortalPage({ params }: { params: Promise<{ clientI
                     </div>
                 </div>
 
+                {/* 受入完了済みバナー */}
+                {receiptCompleted && (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
+                        <p className="text-emerald-700 font-bold text-lg">受入完了済み</p>
+                        <p className="text-emerald-600 text-sm mt-1">
+                            {new Date(receiptCompleted).toLocaleDateString('ja-JP')} に受入を完了しました
+                        </p>
+                    </div>
+                )}
+
                 {/* フィードバック */}
                 {scanFeedback && (
                     <div className={`rounded-xl p-4 text-center font-bold ${
@@ -361,8 +408,17 @@ export default function ClientPortalPage({ params }: { params: Promise<{ clientI
                     </div>
                 )}
 
-                {/* スキャン / CSV */}
-                {scanning ? (
+                {/* スキャン / CSV（完了済みならCSVのみ） */}
+                {receiptCompleted ? (
+                    <div className="flex gap-3">
+                        <button
+                            onClick={downloadCSV}
+                            className="flex-1 bg-white border border-gray-300 text-gray-700 px-4 py-3 rounded-xl font-bold hover:bg-gray-50"
+                        >
+                            CSV ダウンロード
+                        </button>
+                    </div>
+                ) : scanning ? (
                     <div className="relative">
                         <video ref={videoRef} className="w-full rounded-xl bg-black aspect-[4/3] object-cover" playsInline muted />
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -390,6 +446,24 @@ export default function ClientPortalPage({ params }: { params: Promise<{ clientI
                             CSV
                         </button>
                     </div>
+                )}
+
+                {/* 受入完了ボタン */}
+                {!receiptCompleted && totalCount > 0 && (
+                    <button
+                        onClick={handleCompleteReceipt}
+                        disabled={completing}
+                        className={`w-full py-3 rounded-xl font-bold transition-all active:scale-95 ${
+                            receivedCount === totalCount
+                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg'
+                                : 'bg-white border-2 border-gray-300 text-gray-600 hover:bg-gray-50'
+                        }`}
+                    >
+                        {completing ? '処理中...' : receivedCount === totalCount
+                            ? '受入を完了する'
+                            : `受入を完了する（${totalCount - receivedCount}本未チェック）`
+                        }
+                    </button>
                 )}
 
                 {/* 樹木リスト */}
