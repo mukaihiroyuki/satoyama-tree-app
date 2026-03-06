@@ -38,6 +38,7 @@ export default function ClientPortalPage({ params }: { params: Promise<{ clientI
     const videoRef = useRef<HTMLVideoElement>(null)
     const streamRef = useRef<MediaStream | null>(null)
     const scanningRef = useRef(false)
+    const processingRef = useRef(false)
 
     async function fetchData() {
         const supabase = createClient()
@@ -119,41 +120,50 @@ export default function ClientPortalPage({ params }: { params: Promise<{ clientI
 
     // QRスキャンで受入チェック
     const processQrCode = useCallback(async (qrData: string) => {
-        const treeId = qrData.includes('/trees/')
-            ? qrData.split('/trees/').pop()?.split('?')[0]
-            : qrData
+        // 多重実行防止
+        if (processingRef.current) return
+        processingRef.current = true
 
-        if (!treeId) {
-            setScanFeedback({ type: 'error', message: 'QRを読み取れませんでした' })
-            return
+        try {
+            const treeId = qrData.includes('/trees/')
+                ? qrData.split('/trees/').pop()?.split('?')[0]
+                : qrData
+
+            if (!treeId) {
+                setScanFeedback({ type: 'error', message: 'QRを読み取れませんでした' })
+                return
+            }
+
+            const item = trees.find(t => t.tree_id === treeId)
+            if (!item) {
+                setScanFeedback({ type: 'error', message: 'この樹木は納品対象ではありません' })
+                setTimeout(() => setScanFeedback(null), 3000)
+                return
+            }
+            if (item.received) {
+                setScanFeedback({ type: 'error', message: '既に受入チェック済みです' })
+                setTimeout(() => setScanFeedback(null), 2000)
+                return
+            }
+
+            const supabase = createClient()
+            const { error } = await supabase.from('client_receipts').insert({
+                shipment_item_id: item.shipment_item_id,
+                tree_id: item.tree_id,
+                client_id: clientId,
+            })
+
+            if (error) {
+                setScanFeedback({ type: 'error', message: '記録に失敗しました' })
+                return
+            }
+
+            setScanFeedback({ type: 'success', message: `${item.management_number || '-'} ${item.species_name}` })
+            await fetchData()
+        } finally {
+            // 次のスキャンまで少し待つ（連続読み取り防止）
+            setTimeout(() => { processingRef.current = false }, 1500)
         }
-
-        const item = trees.find(t => t.tree_id === treeId)
-        if (!item) {
-            setScanFeedback({ type: 'error', message: 'この樹木は納品対象ではありません' })
-            setTimeout(() => setScanFeedback(null), 3000)
-            return
-        }
-        if (item.received) {
-            setScanFeedback({ type: 'error', message: '既に受入チェック済みです' })
-            setTimeout(() => setScanFeedback(null), 2000)
-            return
-        }
-
-        const supabase = createClient()
-        const { error } = await supabase.from('client_receipts').insert({
-            shipment_item_id: item.shipment_item_id,
-            tree_id: item.tree_id,
-            client_id: clientId,
-        })
-
-        if (error) {
-            setScanFeedback({ type: 'error', message: '記録に失敗しました' })
-            return
-        }
-
-        setScanFeedback({ type: 'success', message: `${item.management_number || '-'} ${item.species_name}` })
-        await fetchData()
     }, [trees, clientId])
 
     // カメラ
