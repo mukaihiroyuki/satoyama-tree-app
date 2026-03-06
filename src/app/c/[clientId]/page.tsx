@@ -409,17 +409,8 @@ export default function ClientPortalPage({ params }: { params: Promise<{ clientI
                     </div>
                 )}
 
-                {/* スキャン / CSV（完了済みならCSVのみ） */}
-                {receiptCompleted ? (
-                    <div className="flex gap-3">
-                        <button
-                            onClick={downloadCSV}
-                            className="flex-1 bg-white border border-gray-300 text-gray-700 px-4 py-3 rounded-xl font-bold hover:bg-gray-50"
-                        >
-                            CSV ダウンロード
-                        </button>
-                    </div>
-                ) : scanning ? (
+                {/* スキャン / CSV */}
+                {scanning ? (
                     <div className="relative">
                         <video ref={videoRef} className="w-full rounded-xl bg-black aspect-[4/3] object-cover" playsInline muted />
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -434,12 +425,18 @@ export default function ClientPortalPage({ params }: { params: Promise<{ clientI
                     </div>
                 ) : (
                     <div className="flex gap-3">
-                        <button
-                            onClick={startScanning}
-                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold shadow-lg transition-all active:scale-95"
-                        >
-                            QRスキャンで受入
-                        </button>
+                        {receivedCount < totalCount && (
+                            <button
+                                onClick={startScanning}
+                                className={`flex-1 py-3 rounded-xl font-bold shadow-lg transition-all active:scale-95 ${
+                                    receiptCompleted
+                                        ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                }`}
+                            >
+                                {receiptCompleted ? '追加チェック' : 'QRスキャンで受入'}
+                            </button>
+                        )}
                         <button
                             onClick={downloadCSV}
                             className="bg-white border border-gray-300 text-gray-700 px-4 py-3 rounded-xl font-bold hover:bg-gray-50"
