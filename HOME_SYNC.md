@@ -4,8 +4,14 @@
 > **自宅PCで開く時の合言葉：**
 > 「`HOME_SYNC.md` を読んで現状を把握して」
 
-## 📍 現在地 (2026-03-04 更新)
-- **クライアント別出荷実績**: ダッシュボードにクライアント別の本数・売上金額・直近出荷日のサマリーテーブルを追加。Server Componentで完結。
+## 📍 現在地 (2026-03-06 更新)
+- **スタッフPIN認証**: 4桁PINでスタッフ識別（localStorage、電波不要）。7名登録（`src/lib/constants.ts` STAFF配列）。`useStaffPin`フック + `StaffPinGuard`ラッパー。
+- **操作ログ**: `activity_logs`テーブル。全操作（create/edit/reserve/cancel_reserve/ship/cancel_ship/delete/estimate）を記録。`logActivity()`/`logActivityBulk()`。専用ページ `/logs`。
+- **見積編集**: クライアント・掛け率一括適用・単価個別編集・明細追加削除・ステータス・担当者・日付・備考。出荷済み見積は編集不可。
+- **ピッキング**: 出荷時QRスキャン照合。`shipments.picking_status`（pending→in_progress→completed）、`shipment_items.picked_at`。出荷詳細→「ピッキング開始」→スキャン→「出荷確定」。スキップ機能あり。
+- **クライアントポータル**: `/c/{clientId}`。QRスキャン受入チェック、進捗バー、CSV出力。`client_receipts`テーブルで受入記録。
+- **ポータル認証**: `clients.portal_password`（4〜6桁PIN）。sessionStorage保存。未設定ならパスワードなしでアクセス可。
+- **ポータル設定**: クライアント管理画面で portal_enabled/portal_show_price/portal_password を設定。URLコピー機能。
 - **Phase 2 完遂**: QR生成・スキャン・PWA・写真同期・CSV出力がすべて稼働。
 - **Bluetooth印刷 完成**: Brother RJ-4250WB + Smooth Print URL scheme で現場印刷が動作。
 - **オフライン編集対応 完成**: IndexedDB (Dexie.js) によるキャッシュ層を実装。電波のない現場でも閲覧・編集可能。
@@ -31,16 +37,29 @@
 - `src/app/scan/page.tsx`: QRスキャナー（BarcodeDetector + jsQRフォールバック）
 - `src/app/shipments/[id]/page.tsx`: 出荷詳細ページ（樹種別グループ集計）
 - `src/app/species/page.tsx`: 樹種マスター管理（一覧・追加・コード編集）
+- `src/app/logs/page.tsx`: 操作ログ閲覧ページ
+- `src/app/c/[clientId]/page.tsx`: クライアントポータル（QR受入チェック）
+- `src/app/shipments/[id]/picking/page.tsx`: ピッキング（出荷時QRスキャン照合）
+- `src/lib/constants.ts`: STAFF配列（PIN）、ASSIGNEES
+- `src/lib/activity-log.ts`: 操作ログ記録ユーティリティ
+- `src/hooks/useStaffPin.ts`: スタッフPIN認証フック
+- `src/components/StaffPinGuard.tsx`: PIN入力ガード + スタッフバー
 - `public/print-templates/`: P-touch Editor テンプレート + 用紙設定
 
 ## 🔜 次回やるべきこと
-（現時点でなし）
+- 見積バージョン管理（帳票機能の拡張）
+- ポータルのメール認証対応（積水等の大手クライアントから要望が出た場合）
+- SaaS化検討（クライアント自社在庫へのQR管理拡張→従量課金モデル）
 
 ## ✅ 見送り・運用で対応
 - **新規登録のオフライン対応**: 現場での新規登録頻度が低いため開発しない。現場ではメモ帳に記録し、事務所でオンライン登録する運用とする
 - **クライアント・出荷履歴のオフライン対応**: 現場で必要になった時に対応する。同じパターン（IndexedDBキャッシュ層追加）で実装可能
 
 ## 💬 申し送り
+2026-03-06: スタッフPIN認証・操作ログ・見積編集・ピッキング・クライアントポータル・アクセスコード認証を一気に実装。DB変更はSupabase SQL Editorで直接実行（activity_logs, picking_status, picked_at, portal_enabled, portal_show_price, portal_password, client_receipts）。スタッフPINはuseSyncExternalStoreで実装（useStateのuseEffect内setState問題を回避）。ピッキングはBarcodeDetector+jsQRフォールバック。クライアントポータルは認証不要→PIN認証に強化。積水ハウスへの納品でセキュリティ質問に備えて対策済み（HTTPS/国内DC/アクセスコード/操作記録/データ分離）。SaaS化の種（クライアント自社在庫QR管理→従量課金）は需要が出てから着手する方針。
+
+2026-03-05: 出荷取消し・予約取消し・一括削除（3段階確認）・フィルター永続化・クライアント自動選択・価格アラートを一気に実装。DB側ではestimate_items/shipment_itemsのtree_id FKにON DELETE CASCADEを追加（Supabase SQL Editorで直接実行、マイグレーションファイルなし）。DeleteConfirmDialogは3ステップで段階的に威圧的になるカスタムモーダル。価格アラートはstep="1000"→"1"に変更しブラウザバリデーション干渉を排除、リアルタイムのオレンジ警告ボックス+submit時confirm()の二重チェック。個別削除後のナビゲーションはrouter.back()でフィルター維持。
+
 2026-03-04: ダッシュボードにクライアント別出荷実績テーブルを追加。`getClientSales()`でshipments+shipment_items+clientsをJOIN→JS側で集計。最初は展開式の明細（ClientSalesDetail.tsx）を作ったが、「1000本になったら微妙」との指摘で展開なしのシンプルサマリーに変更。グラフ化も検討したが、現状2社では不要と判断。クライアントが増えて出荷履歴のフィルターが必要になったら追加する方針。社長向け機能として月別売上推移・売れ筋樹種ランキング・在庫金額・滞留在庫アラートを候補に挙げたが、春の出荷シーズンが本格化してからで十分と判断。
 
 2026-02-20: FORT1（Wi-Fi専用・SIMなし）が山（電波圏外）で樹種選択できない問題を修正。原因: `/trees/new`が`tree-repository.ts`のキャッシュ対応関数を使わずSupabaseに直接問い合わせていた。修正: (1) `getAllSpecies()`に差し替え（IndexedDBフォールバック対応）、(2) ダッシュボードにOfflineCacheWarmer追加（アプリ起動時に全データを自動キャッシュ、「✅ オフライン準備OK」表示）。運用: 事務所Wi-Fiでアプリ開く→「✅」確認→山へ。なお、クライアント管理・出荷履歴はまだオフライン未対応（必要になったら同パターンで追加可能）。
