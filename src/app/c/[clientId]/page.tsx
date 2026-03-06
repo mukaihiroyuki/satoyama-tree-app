@@ -21,6 +21,7 @@ interface DeliveredTree {
     unit_price: number
     shipped_at: string
     received: boolean
+    notes: string | null
 }
 
 export default function ClientPortalPage({ params }: { params: Promise<{ clientId: string }> }) {
@@ -72,7 +73,7 @@ export default function ClientPortalPage({ params }: { params: Promise<{ clientI
                 shipped_at,
                 shipment_items(
                     id, unit_price,
-                    tree:trees(id, management_number, height, trunk_count, species:species_master(name))
+                    tree:trees(id, management_number, height, trunk_count, notes, species:species_master(name))
                 )
             `)
             .eq('client_id', clientId)
@@ -88,7 +89,7 @@ export default function ClientPortalPage({ params }: { params: Promise<{ clientI
         const allTrees: DeliveredTree[] = []
         for (const shipment of shipments || []) {
             for (const item of shipment.shipment_items || []) {
-                const tree = item.tree as unknown as { id: string; management_number: string | null; height: number; trunk_count: number; species: { name: string } | { name: string }[] | null } | null
+                const tree = item.tree as unknown as { id: string; management_number: string | null; height: number; trunk_count: number; notes: string | null; species: { name: string } | { name: string }[] | null } | null
                 if (!tree) continue
                 const speciesName = tree.species
                     ? (Array.isArray(tree.species) ? tree.species[0]?.name : tree.species.name) || '不明'
@@ -103,6 +104,7 @@ export default function ClientPortalPage({ params }: { params: Promise<{ clientI
                     unit_price: item.unit_price,
                     shipped_at: shipment.shipped_at,
                     received: receivedSet.has(item.id),
+                    notes: tree.notes,
                 })
             }
         }
@@ -404,6 +406,11 @@ export default function ClientPortalPage({ params }: { params: Promise<{ clientI
                                         )}
                                         <span className="ml-2">出荷: {t.shipped_at}</span>
                                     </p>
+                                    {t.notes && (
+                                        <p className="text-xs text-gray-400 mt-0.5">
+                                            {t.notes}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                         ))}

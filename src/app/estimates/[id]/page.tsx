@@ -31,6 +31,7 @@ interface EstimateDetail {
             height: number
             trunk_count: number
             price: number
+            notes: string | null
             species: { name: string } | null
         } | null
     }[]
@@ -104,6 +105,7 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
                         height,
                         trunk_count,
                         price,
+                        notes,
                         species:species_master(name)
                     )
                 )
@@ -669,6 +671,7 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
                                                 <thead className="bg-gray-50">
                                                     <tr>
                                                         <th className="px-4 py-2 text-left text-xs font-bold text-gray-400">管理番号</th>
+                                                        <th className="px-4 py-2 text-left text-xs font-bold text-gray-400">備考</th>
                                                         <th className="px-4 py-2 text-right text-xs font-bold text-gray-400">樹高</th>
                                                         <th className="px-4 py-2 text-right text-xs font-bold text-gray-400">本立ち</th>
                                                         <th className="px-4 py-2 text-right text-xs font-bold text-gray-400">単価</th>
@@ -692,6 +695,9 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
                                                                 ) : (
                                                                     <span className="text-gray-400">-</span>
                                                                 )}
+                                                            </td>
+                                                            <td className="px-4 py-2.5 text-gray-500 text-xs max-w-[120px] truncate" title={item.tree?.notes || ''}>
+                                                                {item.tree?.notes || ''}
                                                             </td>
                                                             <td className="px-4 py-2.5 text-right text-gray-600">
                                                                 {item.tree?.height ?? '-'}m
