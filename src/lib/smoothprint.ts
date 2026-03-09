@@ -40,7 +40,7 @@ export function buildSmoothPrintUrl(
         `filename=${encodeURIComponent(templateUrl)}`,
         `paperType=roll`,
         `tapeWidth=102`,
-        `tapeLength=53`,
+        `tapeLength=55`,
         `unit=mm`,
         `copies=${copies}`,
         `text_SPECIES=${encodeURIComponent(data.species)}`,
