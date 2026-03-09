@@ -38,8 +38,9 @@ export function buildSmoothPrintUrl(
 
     const parts: string[] = [
         `filename=${encodeURIComponent(templateUrl)}`,
-        `paperType=dieCut`,
+        `paperType=roll`,
         `tapeWidth=102`,
+        `tapeLength=53`,
         `unit=mm`,
         `copies=${copies}`,
         `text_SPECIES=${encodeURIComponent(data.species)}`,
