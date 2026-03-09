@@ -31,6 +31,9 @@ export async function GET(
 
         let labelXml = labelEntry.getData().toString('utf8')
 
+        // --- ダイカットラベルに設定（ギャップセンサー有効化） ---
+        labelXml = labelXml.replace(/media="0"/, 'media="1"')
+
         // --- QRコードデータを埋め込み ---
         labelXml = labelXml.replace(
             /(<barcode:barcode>[\s\S]*?<pt:data>)([\s\S]*?)(<\/pt:data>)/,
