@@ -42,6 +42,7 @@ function TreesPage() {
     const [clientFilter, setClientFilter] = useState(searchParams.get('client') || '')
     const [shippedAtFilter, setShippedAtFilter] = useState(searchParams.get('shipped_at') || '')
     const [estimateNumberFilter, setEstimateNumberFilter] = useState(searchParams.get('estimate') || '')
+    const [noMgmtNumberFilter, setNoMgmtNumberFilter] = useState(searchParams.get('no_mgmt') === '1')
 
     // フィルター変更時にURLを同期
     const syncFiltersToUrl = useCallback(() => {
@@ -52,9 +53,10 @@ function TreesPage() {
         if (clientFilter) params.set('client', clientFilter)
         if (shippedAtFilter) params.set('shipped_at', shippedAtFilter)
         if (estimateNumberFilter) params.set('estimate', estimateNumberFilter)
+        if (noMgmtNumberFilter) params.set('no_mgmt', '1')
         const qs = params.toString()
         router.replace(`/trees${qs ? `?${qs}` : ''}`, { scroll: false })
-    }, [speciesFilter, locationFilter, statusFilter, clientFilter, shippedAtFilter, estimateNumberFilter, router])
+    }, [speciesFilter, locationFilter, statusFilter, clientFilter, shippedAtFilter, estimateNumberFilter, noMgmtNumberFilter, router])
 
     useEffect(() => {
         syncFiltersToUrl()
@@ -88,8 +90,12 @@ function TreesPage() {
         if (clientFilter && tree.client?.name !== clientFilter) return false
         if (shippedAtFilter && tree.shipped_at !== shippedAtFilter) return false
         if (estimateNumberFilter && !(tree.estimate_number || '').includes(estimateNumberFilter)) return false
+        if (noMgmtNumberFilter && tree.management_number) return false
         return true
-    }), [trees, speciesFilter, locationFilter, statusFilter, clientFilter, shippedAtFilter, estimateNumberFilter])
+    }), [trees, speciesFilter, locationFilter, statusFilter, clientFilter, shippedAtFilter, estimateNumberFilter, noMgmtNumberFilter])
+
+    // 管理番号なしの総数（バッジ表示用）
+    const noMgmtCount = useMemo(() => trees.filter(t => !t.management_number).length, [trees])
 
     // 選択操作
     const toggleSelectAll = () => {
@@ -404,6 +410,27 @@ function TreesPage() {
                             />
                         </div>
 
+                        {/* 管理番号なしフィルター */}
+                        {noMgmtCount > 0 && (
+                            <div className="flex items-end">
+                                <button
+                                    onClick={() => setNoMgmtNumberFilter(!noMgmtNumberFilter)}
+                                    className={`px-4 py-2 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${
+                                        noMgmtNumberFilter
+                                            ? 'bg-orange-500 text-white border-2 border-orange-500'
+                                            : 'bg-orange-50 text-orange-700 border-2 border-orange-300 hover:border-orange-400'
+                                    }`}
+                                >
+                                    管理番号なし
+                                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                                        noMgmtNumberFilter ? 'bg-orange-400 text-white' : 'bg-orange-200 text-orange-800'
+                                    }`}>
+                                        {noMgmtCount}
+                                    </span>
+                                </button>
+                            </div>
+                        )}
+
                         {/* クリアボタン */}
                         <div className="flex items-end">
                             <button
@@ -414,6 +441,7 @@ function TreesPage() {
                                     setClientFilter('')
                                     setShippedAtFilter('')
                                     setEstimateNumberFilter('')
+                                    setNoMgmtNumberFilter(false)
                                     setSelectedIds([])
                                 }}
                                 className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg"

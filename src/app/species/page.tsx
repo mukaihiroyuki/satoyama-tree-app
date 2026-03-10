@@ -21,6 +21,11 @@ export default function SpeciesPage() {
     const [submitting, setSubmitting] = useState(false)
     const [usageCounts, setUsageCounts] = useState<Record<string, number>>({})
     const [deleting, setDeleting] = useState<string | null>(null)
+    const [editingCodeId, setEditingCodeId] = useState<string | null>(null)
+    const [editingCodeValue, setEditingCodeValue] = useState('')
+    const [savingCode, setSavingCode] = useState(false)
+    // 各樹種で管理番号が採番済みの本数
+    const [managedCounts, setManagedCounts] = useState<Record<string, number>>({})
 
     const fetchSpecies = async () => {
         const supabase = createClient()
@@ -43,12 +48,17 @@ export default function SpeciesPage() {
             // 各樹種の使用本数を取得
             const { data: trees } = await supabase
                 .from('trees')
-                .select('species_id')
+                .select('species_id, management_number')
             const counts: Record<string, number> = {}
+            const managed: Record<string, number> = {}
             trees?.forEach(t => {
                 counts[t.species_id] = (counts[t.species_id] || 0) + 1
+                if (t.management_number) {
+                    managed[t.species_id] = (managed[t.species_id] || 0) + 1
+                }
             })
             setUsageCounts(counts)
+            setManagedCounts(managed)
 
             setLoading(false)
         }
@@ -78,6 +88,28 @@ export default function SpeciesPage() {
             await fetchSpecies()
         }
         setSubmitting(false)
+    }
+
+    const handleCodeSave = async (s: Species) => {
+        const newCode = editingCodeValue.trim().toUpperCase() || null
+        if (newCode === s.code) {
+            setEditingCodeId(null)
+            return
+        }
+        setSavingCode(true)
+        const supabase = createClient()
+        const { error } = await supabase
+            .from('species_master')
+            .update({ code: newCode })
+            .eq('id', s.id)
+
+        if (error) {
+            alert('コードの保存に失敗しました: ' + error.message)
+        } else {
+            await fetchSpecies()
+        }
+        setSavingCode(false)
+        setEditingCodeId(null)
     }
 
     const handleDelete = async (s: Species) => {
@@ -170,9 +202,60 @@ export default function SpeciesPage() {
                                     <td className="px-6 py-4 font-bold text-gray-800">{s.name}</td>
                                     <td className="px-6 py-4 text-sm text-gray-500">{s.name_kana || '-'}</td>
                                     <td className="px-6 py-4">
-                                        <span className={`text-sm ${s.code ? 'font-mono font-bold text-gray-800' : 'text-gray-400'}`}>
-                                            {s.code || '未設定'}
-                                        </span>
+                                        {editingCodeId === s.id ? (
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={editingCodeValue}
+                                                    onChange={(e) => setEditingCodeValue(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') handleCodeSave(s)
+                                                        if (e.key === 'Escape') setEditingCodeId(null)
+                                                    }}
+                                                    autoFocus
+                                                    placeholder="AO等"
+                                                    className="w-20 border border-green-400 rounded px-2 py-1 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500"
+                                                    disabled={savingCode}
+                                                />
+                                                <button
+                                                    onClick={() => handleCodeSave(s)}
+                                                    disabled={savingCode}
+                                                    className="text-green-600 hover:text-green-800 text-xs font-bold"
+                                                >
+                                                    {savingCode ? '...' : '保存'}
+                                                </button>
+                                                <button
+                                                    onClick={() => setEditingCodeId(null)}
+                                                    className="text-gray-400 hover:text-gray-600 text-xs"
+                                                >
+                                                    取消
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                onClick={() => {
+                                                    if (managedCounts[s.id] > 0 && s.code) {
+                                                        alert(`「${s.name}」は ${managedCounts[s.id]}本の管理番号で使用中のため、コードを変更できません`)
+                                                        return
+                                                    }
+                                                    setEditingCodeId(s.id)
+                                                    setEditingCodeValue(s.code || '')
+                                                }}
+                                                className={`text-sm flex items-center gap-1.5 ${
+                                                    s.code
+                                                        ? 'font-mono font-bold text-gray-800 hover:text-green-700'
+                                                        : 'text-orange-500 font-bold hover:text-orange-700'
+                                                }`}
+                                                title="クリックして編集"
+                                            >
+                                                {s.code || '未設定'}
+                                                {!s.code && (usageCounts[s.id] || 0) > 0 && (
+                                                    <span className="inline-block bg-orange-100 text-orange-600 text-[10px] px-1.5 py-0.5 rounded-full">
+                                                        要設定
+                                                    </span>
+                                                )}
+                                            </button>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4">
                                         {(usageCounts[s.id] || 0) > 0 ? (

@@ -28,6 +28,7 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
     const fileInputRef = useRef<HTMLInputElement>(null)
     const { tree, loading, isOnline, saveEdit, saveMessage, refreshData } = useTree(id)
     const [uploading, setUploading] = useState(false)
+    const [assigning, setAssigning] = useState(false)
     const [isShipmentDialogOpen, setIsShipmentDialogOpen] = useState(false)
     const [isReservationDialogOpen, setIsReservationDialogOpen] = useState(false)
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -67,6 +68,62 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
         if (confirm('Smooth Print が開きます。印刷後はホーム画面からアプリに戻ってください。')) {
             window.location.href = url
         }
+    }
+
+    // 管理番号の後付け採番
+    async function handleAssignManagementNumber() {
+        if (!tree || tree.management_number) return
+
+        setAssigning(true)
+        try {
+            const supabase = createClient()
+
+            // 樹種のコードを取得
+            const { data: speciesData } = await supabase
+                .from('species_master')
+                .select('code')
+                .eq('id', tree.species_id)
+                .single()
+
+            if (!speciesData?.code) {
+                alert('この樹種にはコードが設定されていません。\n先に「樹種マスター」画面でコードを設定してください。')
+                setAssigning(false)
+                return
+            }
+
+            const year = new Date().getFullYear().toString().slice(-2)
+            const prefix = `${year}-${speciesData.code}-`
+
+            const { data: maxTree } = await supabase
+                .from('trees')
+                .select('management_number')
+                .like('management_number', `${prefix}%`)
+                .order('management_number', { ascending: false })
+                .limit(1)
+                .single()
+
+            const nextNumber = maxTree?.management_number
+                ? parseInt(maxTree.management_number.split('-')[2]) + 1
+                : 1
+            const managementNumber = `${prefix}${nextNumber.toString().padStart(4, '0')}`
+
+            const { error } = await supabase
+                .from('trees')
+                .update({ management_number: managementNumber })
+                .eq('id', tree.id)
+
+            if (error) {
+                alert('管理番号の採番に失敗しました: ' + error.message)
+                setAssigning(false)
+                return
+            }
+
+            await logActivity('edit', tree.id, { management_number: managementNumber, action: '管理番号後付け採番' })
+            refreshData()
+        } catch {
+            alert('管理番号の採番に失敗しました')
+        }
+        setAssigning(false)
     }
 
     // 写真アップロード（オンライン専用）
@@ -291,11 +348,23 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
                 </div>
 
                 {/* 管理番号（大きく表示） */}
-                {tree.management_number && (
+                {tree.management_number ? (
                     <div className="bg-green-50 border-2 border-green-300 rounded-xl p-6 text-center">
                         <p className="text-sm text-green-600 font-bold mb-1">管理番号</p>
                         <p className="text-4xl font-mono font-black text-green-800">{tree.management_number}</p>
                         <p className="text-xs text-green-500 mt-2">※ この番号を木に手書きしてください</p>
+                    </div>
+                ) : (
+                    <div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-6 text-center">
+                        <p className="text-sm text-orange-600 font-bold mb-2">管理番号が未設定です</p>
+                        <button
+                            onClick={handleAssignManagementNumber}
+                            disabled={assigning || !isOnline}
+                            className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white px-6 py-3 rounded-lg font-bold text-lg transition-colors"
+                        >
+                            {assigning ? '採番中...' : !isOnline ? 'オンライン時のみ採番可能' : '管理番号を採番する'}
+                        </button>
+                        <p className="text-xs text-orange-500 mt-2">樹種コードが未設定の場合は先にマスターで設定が必要です</p>
                     </div>
                 )}
 
