@@ -170,7 +170,7 @@ export default function SpeciesPage() {
                         />
                         <input
                             type="text"
-                            placeholder="コード (AO等)"
+                            placeholder="コード (AO, SKY等)"
                             value={code}
                             onChange={(e) => setCode(e.target.value)}
                             className="w-full sm:w-28 border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
@@ -213,7 +213,7 @@ export default function SpeciesPage() {
                                                         if (e.key === 'Escape') setEditingCodeId(null)
                                                     }}
                                                     autoFocus
-                                                    placeholder="AO等"
+                                                    placeholder="AO, SKY等"
                                                     className="w-20 border border-green-400 rounded px-2 py-1 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500"
                                                     disabled={savingCode}
                                                 />

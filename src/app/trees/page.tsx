@@ -143,7 +143,7 @@ function TreesPage() {
         const supabase = createClient()
 
         let successCount = 0
-        let noCodeSpecies: string[] = []
+        const noCodeSpecies: string[] = []
 
         // 樹種ごとにグループ化して採番
         const bySpecies = new Map<string, typeof targets>()
