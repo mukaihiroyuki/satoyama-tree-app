@@ -366,9 +366,10 @@ export default function NewTreePage() {
                     {/* 圃場選択 */}
                     <div className="space-y-3">
                         <label className="block text-sm font-bold text-gray-700">
-                            圃場
+                            圃場 <span className="text-red-500">*</span>
                         </label>
                         <select
+                            required
                             value={formData.location}
                             onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                             className="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white"

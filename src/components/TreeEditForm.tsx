@@ -211,12 +211,19 @@ export default function TreeEditForm({ tree, isOnline, saveMessage, onSave }: Tr
                 </div>
                 <div>
                     <label className="block text-sm text-gray-500 mb-1">場所</label>
-                    <input
-                        type="text"
+                    <select
                         value={location}
                         onChange={(e) => setLocation(e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-lg"
-                    />
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-lg bg-white"
+                    >
+                        <option value="">選択してください</option>
+                        <option value="第1圃場（倉石1）">第1圃場（倉石1）</option>
+                        <option value="第2圃場（倉石2）">第2圃場（倉石2）</option>
+                        <option value="第3圃場（岡堀土場）">第3圃場（岡堀土場）</option>
+                        <option value="第4圃場（南郷）">第4圃場（南郷）</option>
+                        <option value="第5圃場（蛇沢）">第5圃場（蛇沢）</option>
+                        <option value="第6圃場（大タルミ）">第6圃場（大タルミ）</option>
+                    </select>
                 </div>
             </div>
 
