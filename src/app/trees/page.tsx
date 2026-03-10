@@ -128,6 +128,87 @@ function TreesPage() {
     const selectedStatuses = new Set(selectedTreesFiltered.map(t => t.status))
     const hasReserved = selectedStatuses.has('reserved')
     const hasShipped = selectedStatuses.has('shipped')
+    const hasNoMgmtNumber = selectedTreesFiltered.some(t => !t.management_number)
+    const [assigningMgmt, setAssigningMgmt] = useState(false)
+
+    // 管理番号一括採番
+    async function handleBulkAssignManagementNumber() {
+        const targets = selectedTreesFiltered.filter(t => !t.management_number)
+        if (targets.length === 0) return
+
+        const speciesNames = [...new Set(targets.map(t => t.species?.name || '不明'))]
+        if (!confirm(`${targets.length} 本に管理番号を採番します。\n対象樹種: ${speciesNames.join('、')}\n\nよろしいですか？`)) return
+
+        setAssigningMgmt(true)
+        const supabase = createClient()
+
+        let successCount = 0
+        let noCodeSpecies: string[] = []
+
+        // 樹種ごとにグループ化して採番
+        const bySpecies = new Map<string, typeof targets>()
+        for (const t of targets) {
+            const sid = t.species_id || ''
+            if (!bySpecies.has(sid)) bySpecies.set(sid, [])
+            bySpecies.get(sid)!.push(t)
+        }
+
+        for (const [speciesId, treesInGroup] of bySpecies) {
+            // 樹種コードを取得
+            const { data: speciesData } = await supabase
+                .from('species_master')
+                .select('code, name')
+                .eq('id', speciesId)
+                .single()
+
+            if (!speciesData?.code) {
+                noCodeSpecies.push(speciesData?.name || '不明')
+                continue
+            }
+
+            const year = new Date().getFullYear().toString().slice(-2)
+            const prefix = `${year}-${speciesData.code}-`
+
+            // 現在の最大番号を取得
+            const { data: maxTree } = await supabase
+                .from('trees')
+                .select('management_number')
+                .like('management_number', `${prefix}%`)
+                .order('management_number', { ascending: false })
+                .limit(1)
+                .single()
+
+            let nextNumber = maxTree?.management_number
+                ? parseInt(maxTree.management_number.split('-')[2]) + 1
+                : 1
+
+            // 1本ずつ採番して保存
+            for (const t of treesInGroup) {
+                const mgmtNumber = `${prefix}${nextNumber.toString().padStart(4, '0')}`
+                const { error } = await supabase
+                    .from('trees')
+                    .update({ management_number: mgmtNumber })
+                    .eq('id', t.id)
+
+                if (!error) {
+                    await logActivityBulk('edit', [t.id])
+                    nextNumber++
+                    successCount++
+                }
+            }
+        }
+
+        setAssigningMgmt(false)
+
+        let message = `${successCount} 本に管理番号を採番しました。`
+        if (noCodeSpecies.length > 0) {
+            message += `\n\n以下の樹種はコード未設定のため採番できませんでした:\n${noCodeSpecies.join('、')}\n\n「樹種マスター」画面でコードを設定してください。`
+        }
+        alert(message)
+
+        setSelectedIds([])
+        refreshData()
+    }
 
     // 予約取消
     async function handleCancelReservation() {
@@ -577,6 +658,15 @@ function TreesPage() {
                         </p>
                     </div>
                     <div className="flex gap-2 sm:gap-4 overflow-x-auto w-full sm:w-auto justify-center">
+                        {hasNoMgmtNumber && (
+                            <button
+                                onClick={handleBulkAssignManagementNumber}
+                                disabled={assigningMgmt}
+                                className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 px-4 sm:px-6 py-2 rounded-xl font-bold transition-all active:scale-95 whitespace-nowrap text-sm sm:text-base"
+                            >
+                                {assigningMgmt ? '採番中...' : '管理番号を採番'}
+                            </button>
+                        )}
                         <button
                             onClick={() => setIsEstimateDialogOpen(true)}
                             className="bg-emerald-600 hover:bg-emerald-700 px-4 sm:px-6 py-2 rounded-xl font-bold transition-all active:scale-95 whitespace-nowrap text-sm sm:text-base"
