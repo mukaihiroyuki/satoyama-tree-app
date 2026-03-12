@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { useStaffPin } from '@/hooks/useStaffPin'
 
 interface StaffPinGuardProps {
@@ -8,9 +9,15 @@ interface StaffPinGuardProps {
 }
 
 export default function StaffPinGuard({ children }: StaffPinGuardProps) {
+    const pathname = usePathname()
     const { staffName, loaded, login, logout } = useStaffPin()
     const [pin, setPin] = useState('')
     const [error, setError] = useState(false)
+
+    // クライアントポータルはスタッフPIN不要
+    if (pathname.startsWith('/c/')) {
+        return <>{children}</>
+    }
 
     if (!loaded) return null
 
