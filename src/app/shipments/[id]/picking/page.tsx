@@ -4,7 +4,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { logActivityBulk } from '@/lib/activity-log'
+import { logActivity, logActivityBulk } from '@/lib/activity-log'
+import { playSuccess, playError } from '@/lib/sound'
 
 interface PickingItem {
     id: string
@@ -82,13 +83,40 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
         // この出荷に含まれている木か確認
         const item = shipment.shipment_items.find(i => i.tree?.id === treeId)
         if (!item) {
-            setScanError('この木は出荷対象ではありません')
-            setTimeout(() => setScanError(null), 3000)
+            // DBに存在するか確認して、エラーメッセージを分岐
+            const supabase = createClient()
+            const { data: tree } = await supabase
+                .from('trees')
+                .select('management_number')
+                .eq('id', treeId)
+                .single()
+
+            if (!tree) {
+                setScanError('この管理番号はDBに登録されていません。番号を確認してください')
+                logActivity('scan_error', null, {
+                    reason: 'not_in_db',
+                    scanned_id: treeId,
+                    shipment_id: shipment.id,
+                })
+            } else {
+                setScanError(`${tree.management_number || 'この木'}はこの出荷の対象ではありません`)
+                logActivity('scan_error', treeId, {
+                    reason: 'not_in_shipment',
+                    management_number: tree.management_number,
+                    shipment_id: shipment.id,
+                })
+            }
+            // エラーフィードバック: 長いバイブ + ブッ
+            navigator.vibrate?.(500)
+            playError()
+            setTimeout(() => setScanError(null), 4000)
             return
         }
 
         if (item.picked_at) {
             setScanError('この木は既にスキャン済みです')
+            navigator.vibrate?.(200)
+            playError()
             setTimeout(() => setScanError(null), 2000)
             return
         }
@@ -118,6 +146,9 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
             : '不明'
         setLastScanned(`${item.tree?.management_number || '-'} ${speciesName}`)
         setScanError(null)
+        // 成功フィードバック: バイブ + ピコン
+        navigator.vibrate?.([100, 50, 100])
+        playSuccess()
         await fetchShipment()
     }, [shipment])
 
@@ -130,7 +161,11 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'environment' }
+                video: {
+                    facingMode: 'environment',
+                    width: { ideal: 640 },
+                    height: { ideal: 480 },
+                }
             })
             streamRef.current = stream
             if (videoRef.current) {
@@ -170,9 +205,9 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
                             processQrCode(code.data)
                         }
                     }
-                    if (scanningRef.current) requestAnimationFrame(scanLoop)
+                    if (scanningRef.current) setTimeout(scanLoop, 150)
                 }
-                requestAnimationFrame(scanLoop)
+                scanLoop()
             }
         } catch {
             setScanError('カメラを起動できませんでした')

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import OfflineCacheWarmer from '@/components/OfflineCacheWarmer'
+import ScanErrorAlerts from '@/components/ScanErrorAlerts'
 
 // 樹木の統計情報を取得
 async function getTreeStats() {
@@ -147,6 +148,9 @@ export default async function Home() {
             color="purple"
           />
         </div>
+
+        {/* スキャンエラーアラート */}
+        <ScanErrorAlerts />
 
         {/* クライアント別 出荷実績 */}
         {clientSales.length > 0 && (

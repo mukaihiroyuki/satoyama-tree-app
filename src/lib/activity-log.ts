@@ -10,6 +10,7 @@ export type ActionType =
     | 'cancel_ship'
     | 'delete'
     | 'estimate'
+    | 'scan_error'
 
 export async function logActivity(
     action: ActionType,

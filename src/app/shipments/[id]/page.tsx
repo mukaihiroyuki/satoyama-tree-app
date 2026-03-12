@@ -24,6 +24,7 @@ interface ShipmentDetail {
         id: string
         unit_price: number
         discount_amount: number | null
+        picked_at: string | null
         tree: {
             id: string
             management_number: string | null
@@ -48,11 +49,12 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
     const [cancelling, setCancelling] = useState(false)
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
     const [receivedCount, setReceivedCount] = useState(0)
+    const [manualPickTarget, setManualPickTarget] = useState<{ itemId: string; treeId: string | null; managementNumber: string } | null>(null)
+    const [manualPickReason, setManualPickReason] = useState('')
 
-    useEffect(() => {
-        async function fetch() {
-            const supabase = createClient()
-            const { data, error } = await supabase
+    async function fetchShipment() {
+        const supabase = createClient()
+        const { data, error } = await supabase
                 .from('shipments')
                 .select(`
                     id,
@@ -69,6 +71,7 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                         id,
                         unit_price,
                         discount_amount,
+                        picked_at,
                         tree:trees(
                             id,
                             management_number,
@@ -103,8 +106,11 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
             }
 
             setLoading(false)
-        }
-        fetch()
+    }
+
+    useEffect(() => {
+        fetchShipment()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id])
 
     // 樹種ごとにグループ化
@@ -141,6 +147,27 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
             }
             return next
         })
+    }
+
+    // 未スキャン明細の手動確認（理由必須）
+    async function handleManualPick() {
+        if (!manualPickTarget || !manualPickReason.trim()) return
+        const supabase = createClient()
+        await supabase
+            .from('shipment_items')
+            .update({ picked_at: new Date().toISOString() })
+            .eq('id', manualPickTarget.itemId)
+
+        await logActivity('edit', manualPickTarget.treeId, {
+            manual_pick: true,
+            reason: manualPickReason.trim(),
+            management_number: manualPickTarget.managementNumber,
+            shipment_id: id,
+        })
+
+        setManualPickTarget(null)
+        setManualPickReason('')
+        fetchShipment()
     }
 
     // 個別の木を出荷から取り消す
@@ -263,6 +290,7 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
         : shipment.client?.name || '不明'
     const totalItems = shipment.shipment_items.length
     const totalAmount = shipment.shipment_items.reduce((sum, i) => sum + (i.unit_price || 0), 0)
+    const unscannedItems = shipment.shipment_items.filter(i => !i.picked_at)
 
     return (
         <div className="min-h-screen bg-gray-50 pb-12">
@@ -316,6 +344,92 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                 {shipment.picking_status === 'completed' && (
                     <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
                         <span className="text-green-700 font-bold">ピッキング完了・出荷確定済み</span>
+                    </div>
+                )}
+
+                {/* 未スキャン明細（事務所用：手動確認） */}
+                {(shipment.picking_status === 'completed' || shipment.picking_status === 'in_progress') && unscannedItems.length > 0 && (
+                    <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4">
+                        <h3 className="font-bold text-amber-800 mb-2">
+                            未スキャン ({unscannedItems.length}本)
+                        </h3>
+                        <p className="text-xs text-amber-600 mb-1">
+                            ピッキング時にスキャンされなかった明細です。
+                        </p>
+                        <p className="text-xs font-bold text-red-600 mb-3">
+                            ※ 手動確認は事務所で行ってください。現場での操作は禁止です。
+                        </p>
+                        <div className="space-y-2">
+                            {unscannedItems.map(item => {
+                                const speciesName = item.tree?.species
+                                    ? (Array.isArray(item.tree.species) ? item.tree.species[0]?.name : item.tree.species.name)
+                                    : '不明'
+                                return (
+                                    <div
+                                        key={item.id}
+                                        className="flex items-center justify-between bg-white rounded-lg px-4 py-2 border border-amber-200"
+                                    >
+                                        <div>
+                                            <span className="font-mono text-sm font-bold text-gray-800">
+                                                {item.tree?.management_number || '-'}
+                                            </span>
+                                            <span className="text-xs text-gray-500 ml-2">{speciesName}</span>
+                                        </div>
+                                        <button
+                                            onClick={() => setManualPickTarget({
+                                                itemId: item.id,
+                                                treeId: item.tree?.id || null,
+                                                managementNumber: item.tree?.management_number || '-',
+                                            })}
+                                            className="text-xs bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded font-bold transition-colors"
+                                        >
+                                            手動確認
+                                        </button>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {/* 手動確認ダイアログ */}
+                {manualPickTarget && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                            <h3 className="text-lg font-bold text-gray-800 mb-1">手動確認</h3>
+                            <p className="text-xs font-bold text-red-600 mb-2">
+                                ※ この操作は事務所で行ってください。現場での操作は禁止です。
+                            </p>
+                            <p className="text-sm text-gray-500 mb-4">
+                                <span className="font-mono font-bold">{manualPickTarget.managementNumber}</span> をスキャンなしで確認済みにします
+                            </p>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">
+                                理由 <span className="text-red-500">*</span>
+                            </label>
+                            <textarea
+                                value={manualPickReason}
+                                onChange={(e) => setManualPickReason(e.target.value)}
+                                placeholder="例: 現場で積込み確認済み、ラベル剥がれでスキャン不可"
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 resize-none"
+                                rows={3}
+                                autoFocus
+                            />
+                            <div className="flex gap-3 mt-4">
+                                <button
+                                    onClick={() => { setManualPickTarget(null); setManualPickReason('') }}
+                                    className="flex-1 py-2 rounded-lg border border-gray-300 text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors"
+                                >
+                                    キャンセル
+                                </button>
+                                <button
+                                    onClick={handleManualPick}
+                                    disabled={!manualPickReason.trim()}
+                                    className="flex-1 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold text-sm transition-colors"
+                                >
+                                    確認済みにする
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
 

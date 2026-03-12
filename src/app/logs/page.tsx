@@ -23,6 +23,7 @@ const ACTION_LABELS: Record<string, { label: string; color: string }> = {
     cancel_ship: { label: '出荷取消', color: 'bg-red-100 text-red-700' },
     delete: { label: '削除', color: 'bg-red-100 text-red-700' },
     estimate: { label: '見積', color: 'bg-emerald-100 text-emerald-700' },
+    scan_error: { label: 'スキャンエラー', color: 'bg-red-200 text-red-800' },
 }
 
 function formatDetails(details: Record<string, unknown> | null): string {
@@ -88,6 +89,7 @@ export default function LogsPage() {
                         { value: 'cancel_ship', label: '出荷取消' },
                         { value: 'delete', label: '削除' },
                         { value: 'estimate', label: '見積' },
+                        { value: 'scan_error', label: 'スキャンエラー' },
                     ].map(f => (
                         <button
                             key={f.value}
