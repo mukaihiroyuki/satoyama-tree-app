@@ -63,8 +63,8 @@ export default function ScanPage() {
                 stream = await navigator.mediaDevices.getUserMedia({
                     video: {
                         facingMode: 'environment',
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 },
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
                     },
                     audio: false,
                 })
@@ -157,7 +157,9 @@ export default function ScanPage() {
                 }
 
                 if (!stopped) {
-                    animFrameRef.current = requestAnimationFrame(scanFrame)
+                    setTimeout(() => {
+                        animFrameRef.current = requestAnimationFrame(scanFrame)
+                    }, 150)
                 }
             }
 

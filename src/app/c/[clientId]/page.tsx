@@ -188,7 +188,7 @@ export default function ClientPortalPage({ params }: { params: Promise<{ clientI
         scanningRef.current = true
         setScanFeedback(null)
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } } })
             streamRef.current = stream
             if (videoRef.current) {
                 videoRef.current.srcObject = stream
@@ -220,9 +220,9 @@ export default function ClientPortalPage({ params }: { params: Promise<{ clientI
                         const code = jsQR(img.data, img.width, img.height)
                         if (code) processQrCode(code.data)
                     }
-                    if (scanningRef.current) requestAnimationFrame(loop)
+                    if (scanningRef.current) setTimeout(loop, 150)
                 }
-                requestAnimationFrame(loop)
+                loop()
             }
         } catch {
             setScanFeedback({ type: 'error', message: 'カメラを起動できませんでした' })
