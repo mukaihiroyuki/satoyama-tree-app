@@ -18,6 +18,7 @@ export interface TreeLabelData {
     price: number
     managementNumber: string | null
     treeId: string
+    notes?: string | null
 }
 
 /**
@@ -49,6 +50,10 @@ export function buildSmoothPrintUrl(
 
     if (data.managementNumber) {
         parts.push(`text_MGMT_NUM=${encodeURIComponent(data.managementNumber)}`)
+    }
+
+    if (data.notes) {
+        parts.push(`text_NOTES=${encodeURIComponent(data.notes)}`)
     }
 
     return `brotherwebprint://print?${parts.join('&')}`
