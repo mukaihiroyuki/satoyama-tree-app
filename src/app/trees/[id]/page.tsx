@@ -66,9 +66,14 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
         const baseUrl = window.location.origin
         const url = buildSmoothPrintUrl(labelData, baseUrl)
 
-        if (confirm('Smooth Print が開きます。印刷後はホーム画面からアプリに戻ってください。')) {
-            window.location.href = url
-        }
+        // window.location.href だとPWAのWebView状態が壊れてタッチ不能になるため
+        // <a>要素経由で外部アプリを開く
+        const a = document.createElement('a')
+        a.href = url
+        a.style.display = 'none'
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
     }
 
     // 管理番号の後付け採番

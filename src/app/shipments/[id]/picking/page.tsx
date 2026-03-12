@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -38,6 +38,13 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
     const videoRef = useRef<HTMLVideoElement>(null)
     const streamRef = useRef<MediaStream | null>(null)
     const scanningRef = useRef(false)
+    const processingRef = useRef(false)
+    const shipmentRef = useRef<ShipmentInfo | null>(null)
+
+    // shipmentが更新されたらrefも同期（スキャンループが常に最新を参照）
+    useEffect(() => {
+        shipmentRef.current = shipment
+    }, [shipment])
 
     async function fetchShipment() {
         const supabase = createClient()
@@ -66,91 +73,98 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
     const totalCount = shipment?.shipment_items.length || 0
     const allPicked = pickedCount === totalCount && totalCount > 0
 
-    // QRスキャン処理
-    const processQrCode = useCallback(async (qrData: string) => {
-        if (!shipment) return
+    // QRスキャン処理（refから最新shipmentを参照、processingRefで二重処理防止）
+    async function processQrCode(qrData: string) {
+        const currentShipment = shipmentRef.current
+        if (!currentShipment) return
+        if (processingRef.current) return
+        processingRef.current = true
 
-        // QRからtree IDを抽出（URLの末尾がID）
-        const treeId = qrData.includes('/trees/')
-            ? qrData.split('/trees/').pop()?.split('?')[0]
-            : qrData
+        try {
+            // QRからtree IDを抽出（URLの末尾がID）
+            const treeId = qrData.includes('/trees/')
+                ? qrData.split('/trees/').pop()?.split('?')[0]
+                : qrData
 
-        if (!treeId) {
-            setScanError('QRコードを読み取れませんでした')
-            return
-        }
-
-        // この出荷に含まれている木か確認
-        const item = shipment.shipment_items.find(i => i.tree?.id === treeId)
-        if (!item) {
-            // DBに存在するか確認して、エラーメッセージを分岐
-            const supabase = createClient()
-            const { data: tree } = await supabase
-                .from('trees')
-                .select('management_number')
-                .eq('id', treeId)
-                .single()
-
-            if (!tree) {
-                setScanError('この管理番号はDBに登録されていません。番号を確認してください')
-                logActivity('scan_error', null, {
-                    reason: 'not_in_db',
-                    scanned_id: treeId,
-                    shipment_id: shipment.id,
-                })
-            } else {
-                setScanError(`${tree.management_number || 'この木'}はこの出荷の対象ではありません`)
-                logActivity('scan_error', treeId, {
-                    reason: 'not_in_shipment',
-                    management_number: tree.management_number,
-                    shipment_id: shipment.id,
-                })
+            if (!treeId) {
+                setScanError('QRコードを読み取れませんでした')
+                return
             }
-            // エラーフィードバック: 長いバイブ + ブッ
-            navigator.vibrate?.(500)
-            playError()
-            setTimeout(() => setScanError(null), 4000)
-            return
+
+            // この出荷に含まれている木か確認
+            const item = currentShipment.shipment_items.find(i => i.tree?.id === treeId)
+            if (!item) {
+                // DBに存在するか確認して、エラーメッセージを分岐
+                const supabase = createClient()
+                const { data: tree } = await supabase
+                    .from('trees')
+                    .select('management_number')
+                    .eq('id', treeId)
+                    .single()
+
+                if (!tree) {
+                    setScanError('この管理番号はDBに登録されていません。番号を確認してください')
+                    logActivity('scan_error', null, {
+                        reason: 'not_in_db',
+                        scanned_id: treeId,
+                        shipment_id: currentShipment.id,
+                    })
+                } else {
+                    setScanError(`${tree.management_number || 'この木'}はこの出荷の対象ではありません`)
+                    logActivity('scan_error', treeId, {
+                        reason: 'not_in_shipment',
+                        management_number: tree.management_number,
+                        shipment_id: currentShipment.id,
+                    })
+                }
+                // エラーフィードバック: 長いバイブ + ブッ
+                navigator.vibrate?.(500)
+                playError()
+                setTimeout(() => setScanError(null), 4000)
+                return
+            }
+
+            if (item.picked_at) {
+                setScanError('この木は既にスキャン済みです')
+                navigator.vibrate?.(200)
+                playError()
+                setTimeout(() => setScanError(null), 2000)
+                return
+            }
+
+            // ピッキング済みにする
+            const supabase = createClient()
+            const { error } = await supabase
+                .from('shipment_items')
+                .update({ picked_at: new Date().toISOString() })
+                .eq('id', item.id)
+
+            if (error) {
+                setScanError('記録に失敗しました')
+                return
+            }
+
+            // ステータスをin_progressに（初回スキャン時）
+            if (currentShipment.picking_status === 'pending') {
+                await supabase
+                    .from('shipments')
+                    .update({ picking_status: 'in_progress' })
+                    .eq('id', currentShipment.id)
+            }
+
+            const speciesName = item.tree?.species
+                ? (Array.isArray(item.tree.species) ? item.tree.species[0]?.name : item.tree.species.name)
+                : '不明'
+            setLastScanned(`${item.tree?.management_number || '-'} ${speciesName}`)
+            setScanError(null)
+            // 成功フィードバック: バイブ + ピコン
+            navigator.vibrate?.([100, 50, 100])
+            playSuccess()
+            await fetchShipment()
+        } finally {
+            processingRef.current = false
         }
-
-        if (item.picked_at) {
-            setScanError('この木は既にスキャン済みです')
-            navigator.vibrate?.(200)
-            playError()
-            setTimeout(() => setScanError(null), 2000)
-            return
-        }
-
-        // ピッキング済みにする
-        const supabase = createClient()
-        const { error } = await supabase
-            .from('shipment_items')
-            .update({ picked_at: new Date().toISOString() })
-            .eq('id', item.id)
-
-        if (error) {
-            setScanError('記録に失敗しました')
-            return
-        }
-
-        // ステータスをin_progressに（初回スキャン時）
-        if (shipment.picking_status === 'pending') {
-            await supabase
-                .from('shipments')
-                .update({ picking_status: 'in_progress' })
-                .eq('id', shipment.id)
-        }
-
-        const speciesName = item.tree?.species
-            ? (Array.isArray(item.tree.species) ? item.tree.species[0]?.name : item.tree.species.name)
-            : '不明'
-        setLastScanned(`${item.tree?.management_number || '-'} ${speciesName}`)
-        setScanError(null)
-        // 成功フィードバック: バイブ + ピコン
-        navigator.vibrate?.([100, 50, 100])
-        playSuccess()
-        await fetchShipment()
-    }, [shipment])
+    }
 
     // カメラ起動
     async function startScanning() {
@@ -163,8 +177,10 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: {
                     facingMode: 'environment',
-                    width: { ideal: 640 },
-                    height: { ideal: 480 },
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    // @ts-expect-error -- focusMode は標準仕様だがTypeScript型定義に未反映
+                    focusMode: { ideal: 'continuous' },
                 }
             })
             streamRef.current = stream
@@ -175,39 +191,67 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
 
             // BarcodeDetector or jsQR fallback
             if ('BarcodeDetector' in window) {
-                const detector = new (window as unknown as { BarcodeDetector: new (opts: { formats: string[] }) => { detect: (source: HTMLVideoElement) => Promise<{ rawValue: string }[]> } }).BarcodeDetector({ formats: ['qr_code'] })
+                const detector = new (window as unknown as { BarcodeDetector: new (opts: { formats: string[] }) => { detect: (source: HTMLVideoElement | HTMLCanvasElement) => Promise<{ rawValue: string }[]> } }).BarcodeDetector({ formats: ['qr_code'] })
+                const canvas = document.createElement('canvas')
+                const ctx = canvas.getContext('2d')!
                 const scanLoop = async () => {
                     if (!scanningRef.current || !videoRef.current) return
-                    try {
-                        const barcodes = await detector.detect(videoRef.current)
-                        if (barcodes.length > 0) {
-                            await processQrCode(barcodes[0].rawValue)
-                        }
-                    } catch { /* ignore */ }
-                    if (scanningRef.current) requestAnimationFrame(scanLoop)
+                    if (!processingRef.current) {
+                        try {
+                            // 中央60%をクロップして解析（精度向上 + 負荷軽減）
+                            const video = videoRef.current
+                            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                                const vw = video.videoWidth
+                                const vh = video.videoHeight
+                                const cropW = Math.round(vw * 0.6)
+                                const cropH = Math.round(vh * 0.6)
+                                const cropX = Math.round((vw - cropW) / 2)
+                                const cropY = Math.round((vh - cropH) / 2)
+                                canvas.width = cropW
+                                canvas.height = cropH
+                                ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH)
+                                const barcodes = await detector.detect(canvas)
+                                if (barcodes.length > 0) {
+                                    await processQrCode(barcodes[0].rawValue)
+                                }
+                            }
+                        } catch { /* ignore */ }
+                    }
+                    if (scanningRef.current) setTimeout(scanLoop, 200)
                 }
-                requestAnimationFrame(scanLoop)
+                setTimeout(scanLoop, 200)
             } else {
-                // jsQR fallback
+                // jsQR fallback (iOS PWA等)
                 const { default: jsQR } = await import('jsqr')
                 const canvas = document.createElement('canvas')
                 const ctx = canvas.getContext('2d')!
                 const scanLoop = () => {
                     if (!scanningRef.current || !videoRef.current) return
-                    const video = videoRef.current
-                    if (video.readyState === video.HAVE_ENOUGH_DATA) {
-                        canvas.width = video.videoWidth
-                        canvas.height = video.videoHeight
-                        ctx.drawImage(video, 0, 0)
-                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-                        const code = jsQR(imageData.data, imageData.width, imageData.height)
-                        if (code) {
-                            processQrCode(code.data)
+                    if (!processingRef.current) {
+                        const video = videoRef.current
+                        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                            // 中央60%をクロップして解析
+                            const vw = video.videoWidth
+                            const vh = video.videoHeight
+                            const cropW = Math.round(vw * 0.6)
+                            const cropH = Math.round(vh * 0.6)
+                            const cropX = Math.round((vw - cropW) / 2)
+                            const cropY = Math.round((vh - cropH) / 2)
+                            canvas.width = cropW
+                            canvas.height = cropH
+                            ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH)
+                            const imageData = ctx.getImageData(0, 0, cropW, cropH)
+                            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                                inversionAttempts: 'dontInvert',
+                            })
+                            if (code) {
+                                processQrCode(code.data)
+                            }
                         }
                     }
-                    if (scanningRef.current) setTimeout(scanLoop, 150)
+                    if (scanningRef.current) setTimeout(scanLoop, 200)
                 }
-                scanLoop()
+                setTimeout(scanLoop, 200)
             }
         } catch {
             setScanError('カメラを起動できませんでした')
