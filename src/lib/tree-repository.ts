@@ -24,15 +24,25 @@ export async function getAllTrees(
                 .select('*, species:species_master(id, name), client:clients(id, name), shipment_items(shipments(shipped_at))')
                 .order('created_at', { ascending: false })
 
-            if (!error && data) {
+            if (error) {
+                console.error('[getAllTrees] Supabase error:', error)
+                return result
+            }
+
+            if (data && data.length > 0) {
                 const trees = flattenShippedAt(data)
-                await db.trees.clear()
-                await db.trees.bulkPut(trees)
+                // キャッシュ保存（失敗してもデータは返す）
+                try {
+                    await db.trees.clear()
+                    await db.trees.bulkPut(trees)
+                } catch (cacheErr) {
+                    console.error('[getAllTrees] Cache write failed:', cacheErr)
+                }
                 const withEdits2 = await applyPendingEditsToList(trees)
                 return mergePendingRegistrations(withEdits2)
             }
-        } catch {
-            // オフラインなら空配列を返す
+        } catch (err) {
+            console.error('[getAllTrees] Network error:', err)
         }
         return result
     }
@@ -53,18 +63,26 @@ async function refreshTreesFromSupabase(onRefresh: (trees: CachedTree[]) => void
             .select('*, species:species_master(id, name), client:clients(id, name), shipment_items(shipments(shipped_at))')
             .order('created_at', { ascending: false })
 
-        if (error || !data) return
+        if (error) {
+            console.error('[refreshTrees] Supabase error:', error)
+            return
+        }
+        if (!data) return
 
         const trees = flattenShippedAt(data)
-        await db.trees.clear()
-        await db.trees.bulkPut(trees)
+        try {
+            await db.trees.clear()
+            await db.trees.bulkPut(trees)
+        } catch (cacheErr) {
+            console.error('[refreshTrees] Cache write failed:', cacheErr)
+        }
 
         // 最新データにpendingEdits/Registrationsを適用して通知
         const withEdits = await applyPendingEditsToList(trees)
         const merged = await mergePendingRegistrations(withEdits)
         onRefresh(merged)
-    } catch {
-        // ネットワークエラー: 静かに無視
+    } catch (err) {
+        console.error('[refreshTrees] Network error:', err)
     }
 }
 
@@ -81,6 +99,31 @@ export async function getTree(
 
     // キャッシュにない場合（初回起動・ストレージクリア後）はSupabaseを待つ
     if (!result) {
+        // pendingRegistrationsにある仮データかチェック
+        const pendingReg = await db.pendingRegistrations.where('temp_id').equals(id).first()
+        if (pendingReg) {
+            return {
+                id: pendingReg.temp_id,
+                species_id: pendingReg.species_id,
+                client_id: null,
+                height: pendingReg.height,
+                trunk_count: pendingReg.trunk_count,
+                price: pendingReg.price,
+                status: 'in_stock',
+                notes: pendingReg.notes,
+                shipped_at: null,
+                estimate_number: null,
+                photo_url: null,
+                location: pendingReg.location,
+                management_number: pendingReg.management_number,
+                arrived_at: pendingReg.created_at.split('T')[0],
+                created_at: pendingReg.created_at,
+                updated_at: pendingReg.created_at,
+                species: { id: pendingReg.species_id, name: pendingReg.species_name },
+                client: null,
+            } as CachedTree
+        }
+
         try {
             const supabase = createClient()
             const { data, error } = await supabase
@@ -89,13 +132,18 @@ export async function getTree(
                 .eq('id', id)
                 .single()
 
-            if (!error && data) {
+            if (error) {
+                console.error('[getTree] Supabase error:', error)
+                return null
+            }
+
+            if (data) {
                 const tree = flattenShippedAt([data])[0]
-                await db.trees.put(tree)
+                try { await db.trees.put(tree) } catch { /* cache write optional */ }
                 return applyPendingEdits(tree)
             }
-        } catch {
-            // オフラインならnullを返す
+        } catch (err) {
+            console.error('[getTree] Network error:', err)
         }
         return null
     }
@@ -137,9 +185,6 @@ export async function getAllSpecies(
     // 1. キャッシュから即座に返す
     const cached = await db.species.toArray()
 
-    // 2. バックグラウンドで更新
-    refreshSpeciesFromSupabase(onRefresh).catch(() => {/* 静かに失敗 */})
-
     // キャッシュが空の場合（初回起動）はSupabaseを待つ
     if (cached.length === 0) {
         try {
@@ -149,14 +194,29 @@ export async function getAllSpecies(
                 .select('id, name, name_kana, code')
                 .order('name_kana')
 
-            if (!error && data) {
-                await db.species.clear()
-                await db.species.bulkPut(data as CachedSpecies[])
+            if (error) {
+                console.error('[getAllSpecies] Supabase error:', error)
+                return cached
+            }
+
+            if (data && data.length > 0) {
+                try {
+                    await db.species.clear()
+                    await db.species.bulkPut(data as CachedSpecies[])
+                } catch (cacheErr) {
+                    console.error('[getAllSpecies] Cache write failed:', cacheErr)
+                }
                 return data as CachedSpecies[]
             }
-        } catch {
-            // 初回でもオフラインなら空配列
+        } catch (err) {
+            console.error('[getAllSpecies] Network error:', err)
         }
+        return cached
+    }
+
+    // 2. キャッシュがある場合のみバックグラウンドで更新
+    if (onRefresh) {
+        refreshSpeciesFromSupabase(onRefresh).catch(() => {/* 静かに失敗 */})
     }
 
     return cached
