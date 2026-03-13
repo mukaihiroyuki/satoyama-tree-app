@@ -56,7 +56,7 @@ export default function NewTreePage() {
         </button>
     )
 
-    // フォーム送信
+    // フォーム送信（オフラインファースト: 常にローカル保存→即遷移→バックグラウンド同期）
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
 
@@ -71,27 +71,20 @@ export default function NewTreePage() {
         setLoading(true)
         setError(null)
 
-        let finalSpeciesId = formData.species_id
+        const finalSpeciesId = formData.species_id
         const selectedSpecies = isNewSpecies
             ? null
             : species.find(s => s.id === finalSpeciesId)
 
-        // オンライン時：従来通りSupabaseに直接登録
-        try {
-            // まず実際にネットワークが使えるか確認（3秒タイムアウト）
-            const controller = new AbortController()
-            const timer = setTimeout(() => controller.abort(), 3000)
-            await fetch('https://www.gstatic.com/generate_204', {
-                method: 'HEAD',
-                mode: 'no-cors',
-                signal: controller.signal,
-            })
-            clearTimeout(timer)
-
-            const supabase = createClient()
-
-            // 新規樹種の場合：まずマスターに追加
-            if (isNewSpecies && newSpeciesName) {
+        // 新規樹種はオンライン必須（樹種IDのサーバー採番が必要）
+        if (isNewSpecies) {
+            if (!newSpeciesName) {
+                setError('樹種名を入力してください')
+                setLoading(false)
+                return
+            }
+            try {
+                const supabase = createClient()
                 const { data: newSpecies, error: speciesError } = await supabase
                     .from('species_master')
                     .insert({ name: newSpeciesName })
@@ -99,84 +92,44 @@ export default function NewTreePage() {
                     .single()
 
                 if (speciesError) {
-                    setError('樹種の登録に失敗しました: ' + speciesError.message)
+                    setError('新規樹種の登録にはネットワーク接続が必要です。電波の良い場所で再試行してください。')
                     setLoading(false)
                     return
                 }
-                finalSpeciesId = newSpecies.id
-            }
 
-            if (!finalSpeciesId) {
-                setError('樹種を選択、または新規入力してください')
-                setLoading(false)
-                return
-            }
-
-            // 管理番号を自動生成
-            let managementNumber: string | null = null
-            const speciesCode = selectedSpecies?.code
-
-            if (speciesCode) {
-                const year = new Date().getFullYear().toString().slice(-2)
-                const prefix = `${year}-${speciesCode}-`
-
-                const { data: maxTree } = await supabase
-                    .from('trees')
-                    .select('management_number')
-                    .like('management_number', `${prefix}%`)
-                    .order('management_number', { ascending: false })
-                    .limit(1)
-                    .single()
-
-                const nextNumber = maxTree?.management_number
-                    ? parseInt(maxTree.management_number.split('-')[2]) + 1
-                    : 1
-                managementNumber = `${prefix}${nextNumber.toString().padStart(4, '0')}`
-            }
-
-            const { data: newTree, error } = await supabase
-                .from('trees')
-                .insert({
-                    species_id: finalSpeciesId,
+                // 新規樹種で登録（オンラインパス）
+                const tempId = crypto.randomUUID()
+                const { managementNumber } = await registerTreeOffline({
+                    temp_id: tempId,
+                    species_id: newSpecies.id,
+                    species_name: newSpeciesName,
+                    species_code: null,
                     height: parseFloat(formData.height),
                     trunk_count: parseInt(formData.trunk_count),
                     price: parseInt(formData.price),
                     notes: formData.notes || null,
                     location: formData.location || null,
-                    management_number: managementNumber,
+                    created_at: new Date().toISOString(),
                 })
-                .select()
-                .single()
-
-            if (error) {
-                console.error('Error:', error)
-                setError('登録に失敗しました: ' + error.message)
+                await logActivity('create', tempId, { management_number: managementNumber })
+                router.replace(`/trees/${tempId}`)
+                return
+            } catch {
+                setError('新規樹種の登録にはネットワーク接続が必要です。既存の樹種から選んでください。')
                 setLoading(false)
                 return
             }
-
-            await logActivity('create', newTree.id, { management_number: managementNumber })
-            router.replace(`/trees/${newTree.id}`)
-            return
-        } catch {
-            // ネットワークエラーまたはタイムアウト → オフライン登録へフォールスルー
         }
 
-        // オフライン時：IndexedDBに仮保存
         if (!finalSpeciesId) {
-            setError('樹種を選択してください（オフライン時は新規樹種を追加できません）')
+            setError('樹種を選択してください')
             setLoading(false)
             return
         }
 
-        if (isNewSpecies) {
-            setError('オフライン時は新規樹種を追加できません。既存の樹種から選んでください。')
-            setLoading(false)
-            return
-        }
-
+        // 常にローカル保存（管理番号もローカル採番）→ 即遷移
         const tempId = crypto.randomUUID()
-        await registerTreeOffline({
+        const { managementNumber } = await registerTreeOffline({
             temp_id: tempId,
             species_id: finalSpeciesId,
             species_name: selectedSpecies?.name || '不明',
@@ -189,7 +142,10 @@ export default function NewTreePage() {
             created_at: new Date().toISOString(),
         })
 
-        // 詳細ページへ（管理番号は電波復帰後に採番されるが、ラベル印刷は可能）
+        // 操作ログ（失敗しても遷移は止めない）
+        logActivity('create', tempId, { management_number: managementNumber }).catch(() => {})
+
+        // 即座に詳細ページへ遷移（管理番号付きでラベル印刷可能）
         router.replace(`/trees/${tempId}`)
     }
 

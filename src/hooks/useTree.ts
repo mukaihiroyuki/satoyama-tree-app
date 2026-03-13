@@ -10,11 +10,16 @@ export function useTree(id: string) {
     const isOnline = useOnlineStatus()
     const fetchRef = useRef(0)
 
-    // 初回取得 + id変更時
+    // 初回取得（キャッシュ即表示 + バックグラウンド同期）
     useEffect(() => {
         const token = ++fetchRef.current
         let cancelled = false
-        repo.getTree(id).then(data => {
+        const onRefresh = (freshTree: CachedTree | null) => {
+            if (!cancelled && token === fetchRef.current) {
+                setTree(freshTree)
+            }
+        }
+        repo.getTree(id, onRefresh).then(data => {
             if (!cancelled && token === fetchRef.current) {
                 setTree(data)
                 setLoading(false)

@@ -58,6 +58,7 @@ export interface PendingRegistration {
     price: number
     notes: string | null
     location: string | null
+    management_number: string | null  // ローカル採番した管理番号
     created_at: string
     synced: 0 | 1
 }
@@ -80,6 +81,20 @@ db.version(3).stores({
     species: 'id, name',
     pendingEdits: '++id, tree_id, synced',
     pendingRegistrations: '++id, temp_id, synced',
+})
+
+db.version(4).stores({
+    trees: 'id, management_number, status, location',
+    species: 'id, name',
+    pendingEdits: '++id, tree_id, synced',
+    pendingRegistrations: '++id, temp_id, synced',
+}).upgrade(tx => {
+    // 既存のpendingRegistrationsにmanagement_numberフィールドを追加
+    return tx.table('pendingRegistrations').toCollection().modify(reg => {
+        if (!('management_number' in reg)) {
+            reg.management_number = null
+        }
+    })
 })
 
 export { db }

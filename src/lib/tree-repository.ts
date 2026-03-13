@@ -3,93 +3,102 @@ import { createClient } from './supabase/client'
 
 export type TreeUpdate = Record<string, string | number | null>
 
-// ネットワークタイムアウト（3秒で繋がらなければオフライン扱い）
-const FETCH_TIMEOUT_MS = 3000
-
-async function isActuallyOnline(): Promise<boolean> {
-    if (!navigator.onLine) return false
-    try {
-        const controller = new AbortController()
-        const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
-        await fetch('https://www.gstatic.com/generate_204', {
-            method: 'HEAD',
-            mode: 'no-cors',
-            signal: controller.signal,
-        })
-        clearTimeout(timer)
-        return true
-    } catch {
-        return false
-    }
-}
-
 // ------------------------------------------------------------------
-// 一覧取得
+// 一覧取得（オフラインファースト）
+// キャッシュを即座に返し、バックグラウンドでSupabase同期
 // ------------------------------------------------------------------
-export async function getAllTrees(): Promise<CachedTree[]> {
-    if (await isActuallyOnline()) {
-        try {
-            const supabase = createClient()
-            const { data, error } = await supabase
-                .from('trees')
-                .select('*, species:species_master(id, name), client:clients(id, name), shipment_items(shipments(shipped_at))')
-                .order('created_at', { ascending: false })
-
-            if (!error && data) {
-                // shipment_items→shipmentsからshipped_atをフラット化
-                const trees = flattenShippedAt(data)
-                // IndexedDBを全入れ替え
-                await db.trees.clear()
-                await db.trees.bulkPut(trees)
-                return trees
-            }
-        } catch {
-            // ネットワークエラー → フォールバック
-        }
-    }
-
-    // オフラインまたはエラー時: キャッシュから返却
+export async function getAllTrees(
+    onRefresh?: (trees: CachedTree[]) => void
+): Promise<CachedTree[]> {
+    // 1. キャッシュから即座に返す
     const cached = await db.trees.orderBy('created_at').reverse().toArray()
-    // 未同期の編集を反映
     const withEdits = await applyPendingEditsToList(cached)
-    // 未同期の新規登録も一覧に含める
-    return mergePendingRegistrations(withEdits)
-}
+    const result = await mergePendingRegistrations(withEdits)
 
-// ------------------------------------------------------------------
-// 単体取得
-// ------------------------------------------------------------------
-export async function getTree(id: string): Promise<CachedTree | null> {
-    if (await isActuallyOnline()) {
-        try {
-            const supabase = createClient()
-            const { data, error } = await supabase
-                .from('trees')
-                .select('*, species:species_master(id, name), client:clients(id, name), shipment_items(shipments(shipped_at))')
-                .eq('id', id)
-                .single()
-
-            if (!error && data) {
-                const tree = flattenShippedAt([data])[0]
-                await db.trees.put(tree)
-                // 未同期の編集があれば上書き適用して返す
-                return applyPendingEdits(tree)
-            }
-        } catch {
-            // フォールバック
-        }
+    // 2. バックグラウンドでSupabaseフェッチ（awaitしない）
+    if (onRefresh) {
+        refreshTreesFromSupabase(onRefresh).catch(() => {/* 静かに失敗 */})
     }
 
-    const cached = await db.trees.get(id)
-    if (!cached) return null
-    return applyPendingEdits(cached)
+    return result
+}
+
+async function refreshTreesFromSupabase(onRefresh: (trees: CachedTree[]) => void) {
+    try {
+        const supabase = createClient()
+        const { data, error } = await supabase
+            .from('trees')
+            .select('*, species:species_master(id, name), client:clients(id, name), shipment_items(shipments(shipped_at))')
+            .order('created_at', { ascending: false })
+
+        if (error || !data) return
+
+        const trees = flattenShippedAt(data)
+        await db.trees.clear()
+        await db.trees.bulkPut(trees)
+
+        // 最新データにpendingEdits/Registrationsを適用して通知
+        const withEdits = await applyPendingEditsToList(trees)
+        const merged = await mergePendingRegistrations(withEdits)
+        onRefresh(merged)
+    } catch {
+        // ネットワークエラー: 静かに無視
+    }
 }
 
 // ------------------------------------------------------------------
-// 樹種マスタ取得
+// 単体取得（オフラインファースト）
 // ------------------------------------------------------------------
-export async function getAllSpecies(): Promise<CachedSpecies[]> {
-    if (await isActuallyOnline()) {
+export async function getTree(
+    id: string,
+    onRefresh?: (tree: CachedTree | null) => void
+): Promise<CachedTree | null> {
+    // 1. キャッシュから即座に返す
+    const cached = await db.trees.get(id)
+    const result = cached ? await applyPendingEdits(cached) : null
+
+    // 2. バックグラウンドでSupabaseフェッチ
+    if (onRefresh) {
+        refreshTreeFromSupabase(id, onRefresh).catch(() => {/* 静かに失敗 */})
+    }
+
+    return result
+}
+
+async function refreshTreeFromSupabase(id: string, onRefresh: (tree: CachedTree | null) => void) {
+    try {
+        const supabase = createClient()
+        const { data, error } = await supabase
+            .from('trees')
+            .select('*, species:species_master(id, name), client:clients(id, name), shipment_items(shipments(shipped_at))')
+            .eq('id', id)
+            .single()
+
+        if (error || !data) return
+
+        const tree = flattenShippedAt([data])[0]
+        await db.trees.put(tree)
+        const withEdits = await applyPendingEdits(tree)
+        onRefresh(withEdits)
+    } catch {
+        // 静かに無視
+    }
+}
+
+// ------------------------------------------------------------------
+// 樹種マスタ取得（オフラインファースト）
+// ------------------------------------------------------------------
+export async function getAllSpecies(
+    onRefresh?: (species: CachedSpecies[]) => void
+): Promise<CachedSpecies[]> {
+    // 1. キャッシュから即座に返す
+    const cached = await db.species.toArray()
+
+    // 2. バックグラウンドで更新
+    refreshSpeciesFromSupabase(onRefresh).catch(() => {/* 静かに失敗 */})
+
+    // キャッシュが空の場合（初回起動）はSupabaseを待つ
+    if (cached.length === 0) {
         try {
             const supabase = createClient()
             const { data, error } = await supabase
@@ -103,42 +112,39 @@ export async function getAllSpecies(): Promise<CachedSpecies[]> {
                 return data as CachedSpecies[]
             }
         } catch {
-            // フォールバック
+            // 初回でもオフラインなら空配列
         }
     }
 
-    return db.species.toArray()
+    return cached
+}
+
+async function refreshSpeciesFromSupabase(onRefresh?: (species: CachedSpecies[]) => void) {
+    try {
+        const supabase = createClient()
+        const { data, error } = await supabase
+            .from('species_master')
+            .select('id, name, name_kana, code')
+            .order('name_kana')
+
+        if (error || !data) return
+
+        await db.species.clear()
+        await db.species.bulkPut(data as CachedSpecies[])
+        onRefresh?.(data as CachedSpecies[])
+    } catch {
+        // 静かに無視
+    }
 }
 
 // ------------------------------------------------------------------
-// 編集保存（オンライン→即送信、オフライン→キュー）
+// 編集保存（常にローカル優先 + バックグラウンド同期）
 // ------------------------------------------------------------------
 export async function saveEdit(
     treeId: string,
     updates: TreeUpdate
 ): Promise<{ offline: boolean }> {
-    if (await isActuallyOnline()) {
-        try {
-            const supabase = createClient()
-            const { error } = await supabase
-                .from('trees')
-                .update(updates)
-                .eq('id', treeId)
-
-            if (!error) {
-                // キャッシュも更新
-                const cached = await db.trees.get(treeId)
-                if (cached) {
-                    await db.trees.put({ ...cached, ...updates } as CachedTree)
-                }
-                return { offline: false }
-            }
-        } catch {
-            // ネットワークエラー → オフラインキューへ
-        }
-    }
-
-    // オフライン: pendingEditsに個別フィールドとして保存
+    // 常にまずローカルに保存
     const now = new Date().toISOString()
     const entries = Object.entries(updates).map(([field, value]) => ({
         tree_id: treeId,
@@ -155,7 +161,33 @@ export async function saveEdit(
         await db.trees.put({ ...cached, ...updates } as CachedTree)
     }
 
-    return { offline: true }
+    // バックグラウンドでSupabase送信を試みる
+    let synced = false
+    try {
+        const supabase = createClient()
+        const { error } = await supabase
+            .from('trees')
+            .update(updates)
+            .eq('id', treeId)
+
+        if (!error) {
+            // 成功 → pendingEditsから該当レコード削除
+            const pending = await db.pendingEdits
+                .where('tree_id')
+                .equals(treeId)
+                .filter(e => e.synced === 0 && e.created_at === now)
+                .toArray()
+            const ids = pending.map(p => p.id).filter((id): id is number => id !== undefined)
+            if (ids.length > 0) {
+                await db.pendingEdits.bulkDelete(ids)
+            }
+            synced = true
+        }
+    } catch {
+        // ネットワークエラー: pendingEditsに残る（次回同期で送信）
+    }
+
+    return { offline: !synced }
 }
 
 // ------------------------------------------------------------------
@@ -262,11 +294,45 @@ async function applyPendingEditsToList(trees: CachedTree[]): Promise<CachedTree[
 }
 
 // ------------------------------------------------------------------
-// オフライン新規登録
+// オフライン新規登録（管理番号をローカル採番）
 // ------------------------------------------------------------------
-export async function registerTreeOffline(reg: Omit<PendingRegistration, 'id' | 'synced'>): Promise<string> {
+export async function registerTreeOffline(reg: Omit<PendingRegistration, 'id' | 'synced' | 'management_number'>): Promise<{ tempId: string; managementNumber: string | null }> {
+    // ローカル管理番号採番
+    let managementNumber: string | null = null
+    if (reg.species_code) {
+        const year = new Date(reg.created_at).getFullYear().toString().slice(-2)
+        const prefix = `${year}-${reg.species_code}-`
+
+        // IndexedDBから同prefixの最大番号を検索
+        const existing = await db.trees
+            .where('management_number')
+            .startsWith(prefix)
+            .toArray()
+
+        // pendingRegistrationsの未同期分も確認（連番衝突防止）
+        const pendingRegs = await db.pendingRegistrations
+            .where('synced')
+            .equals(0)
+            .toArray()
+        const pendingNumbers = pendingRegs
+            .map(p => p.management_number)
+            .filter((n): n is string => !!n && n.startsWith(prefix))
+
+        const allNumbers = [
+            ...existing.map(t => t.management_number).filter((n): n is string => !!n),
+            ...pendingNumbers,
+        ]
+
+        const maxNum = allNumbers.reduce((max, n) => {
+            const num = parseInt(n.split('-')[2])
+            return isNaN(num) ? max : Math.max(max, num)
+        }, 0)
+
+        managementNumber = `${prefix}${(maxNum + 1).toString().padStart(4, '0')}`
+    }
+
     // pendingRegistrationsに保存
-    await db.pendingRegistrations.add({ ...reg, synced: 0 })
+    await db.pendingRegistrations.add({ ...reg, management_number: managementNumber, synced: 0 })
 
     // 一覧表示用にキャッシュにも仮データを入れる
     const now = new Date().toISOString()
@@ -283,7 +349,7 @@ export async function registerTreeOffline(reg: Omit<PendingRegistration, 'id' | 
         estimate_number: null,
         photo_url: null,
         location: reg.location,
-        management_number: null,  // 電波復帰後に採番
+        management_number: managementNumber,
         arrived_at: now.split('T')[0],
         created_at: now,
         updated_at: now,
@@ -292,7 +358,7 @@ export async function registerTreeOffline(reg: Omit<PendingRegistration, 'id' | 
     }
     await db.trees.put(cachedTree)
 
-    return reg.temp_id
+    return { tempId: reg.temp_id, managementNumber }
 }
 
 // ------------------------------------------------------------------
@@ -311,7 +377,7 @@ async function syncPendingRegistrations(): Promise<number> {
 
     for (const reg of pending) {
         try {
-            // 管理番号を採番
+            // サーバー側で正式な管理番号を採番（衝突安全）
             let managementNumber: string | null = null
             if (reg.species_code) {
                 const year = new Date(reg.created_at).getFullYear().toString().slice(-2)
@@ -411,7 +477,7 @@ async function mergePendingRegistrations(trees: CachedTree[]): Promise<CachedTre
             estimate_number: null,
             photo_url: null,
             location: reg.location,
-            management_number: null,
+            management_number: reg.management_number,
             arrived_at: reg.created_at.split('T')[0],
             created_at: reg.created_at,
             updated_at: reg.created_at,

@@ -10,12 +10,18 @@ export function useTrees() {
     const [pendingCount, setPendingCount] = useState(0)
     const isOnline = useOnlineStatus()
 
-    // 初回取得
+    // 初回取得（キャッシュ即表示 + バックグラウンド同期）
     useEffect(() => {
         let cancelled = false
+        const onTreesRefresh = (freshTrees: CachedTree[]) => {
+            if (!cancelled) setTrees(freshTrees)
+        }
+        const onSpeciesRefresh = (freshSpecies: CachedSpecies[]) => {
+            if (!cancelled) setSpecies(freshSpecies)
+        }
         Promise.all([
-            repo.getAllTrees(),
-            repo.getAllSpecies(),
+            repo.getAllTrees(onTreesRefresh),
+            repo.getAllSpecies(onSpeciesRefresh),
             repo.getPendingEditCount(),
         ]).then(([treesData, speciesData, count]) => {
             if (!cancelled) {
@@ -45,8 +51,11 @@ export function useTrees() {
                     await repo.syncPendingEdits()
                 }
                 if (!cancelled) {
+                    const onRefresh = (freshTrees: CachedTree[]) => {
+                        if (!cancelled) setTrees(freshTrees)
+                    }
                     const [treesData, speciesData, newCount] = await Promise.all([
-                        repo.getAllTrees(),
+                        repo.getAllTrees(onRefresh),
                         repo.getAllSpecies(),
                         repo.getPendingEditCount(),
                     ])
@@ -72,8 +81,11 @@ export function useTrees() {
     }, [trees])
 
     const refreshData = useCallback(async () => {
+        const onRefresh = (freshTrees: CachedTree[]) => {
+            setTrees(freshTrees)
+        }
         const [treesData, speciesData, count] = await Promise.all([
-            repo.getAllTrees(),
+            repo.getAllTrees(onRefresh),
             repo.getAllSpecies(),
             repo.getPendingEditCount(),
         ])
