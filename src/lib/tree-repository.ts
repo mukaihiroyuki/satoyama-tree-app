@@ -11,7 +11,14 @@ export async function getAllTrees(
     onRefresh?: (trees: CachedTree[]) => void
 ): Promise<CachedTree[]> {
     // 1. キャッシュから即座に返す
-    const cached = await db.trees.orderBy('created_at').reverse().toArray()
+    let cached: CachedTree[]
+    try {
+        cached = await db.trees.toArray()
+        cached.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+    } catch (dbErr) {
+        console.error('[getAllTrees] IndexedDB read failed:', dbErr)
+        cached = []
+    }
     const withEdits = await applyPendingEditsToList(cached)
     const result = await mergePendingRegistrations(withEdits)
 

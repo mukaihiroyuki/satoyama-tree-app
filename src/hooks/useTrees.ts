@@ -8,6 +8,7 @@ export function useTrees() {
     const [species, setSpecies] = useState<CachedSpecies[]>([])
     const [loading, setLoading] = useState(true)
     const [pendingCount, setPendingCount] = useState(0)
+    const [error, setError] = useState<string | null>(null)
     const isOnline = useOnlineStatus()
 
     // 初回取得（キャッシュ即表示 + バックグラウンド同期）
@@ -25,6 +26,7 @@ export function useTrees() {
             repo.getPendingEditCount(),
         ]).then(([treesData, speciesData, count]) => {
             if (!cancelled) {
+                console.log(`[useTrees] loaded: ${treesData.length} trees, ${speciesData.length} species`)
                 setTrees(treesData)
                 setSpecies(speciesData)
                 setPendingCount(count)
@@ -33,6 +35,7 @@ export function useTrees() {
         }).catch((err) => {
             console.error('データ取得エラー:', err)
             if (!cancelled) {
+                setError(String(err))
                 setLoading(false)
             }
         })
@@ -94,5 +97,5 @@ export function useTrees() {
         setPendingCount(count)
     }, [])
 
-    return { trees, species, locations, loading, isOnline, pendingCount, refreshData }
+    return { trees, species, locations, loading, isOnline, pendingCount, refreshData, error }
 }

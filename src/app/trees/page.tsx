@@ -31,7 +31,7 @@ export default function TreesPageWrapper() {
 }
 
 function TreesPage() {
-    const { trees, species, locations, loading, isOnline, pendingCount, refreshData } = useTrees()
+    const { trees, species, locations, loading, isOnline, pendingCount, refreshData, error } = useTrees()
     const router = useRouter()
     const searchParams = useSearchParams()
 
@@ -378,6 +378,13 @@ function TreesPage() {
             </header>
 
             <main className="max-w-7xl mx-auto px-4 py-8">
+                {/* エラー表示 */}
+                {error && (
+                    <div className="bg-red-50 border-2 border-red-300 rounded-xl px-4 py-3 mb-6">
+                        <p className="text-sm font-bold text-red-800">データ取得エラー: {error}</p>
+                    </div>
+                )}
+
                 {/* オフラインインジケーター */}
                 {(!isOnline || pendingCount > 0) && (
                     <div className={`rounded-xl px-4 py-3 mb-6 flex items-center gap-3 ${
