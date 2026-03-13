@@ -35,6 +35,7 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
     const [scanning, setScanning] = useState(false)
     const [lastScanned, setLastScanned] = useState<string | null>(null)
     const [scanError, setScanError] = useState<string | null>(null)
+    const [confirming, setConfirming] = useState(false)
     const videoRef = useRef<HTMLVideoElement>(null)
     const streamRef = useRef<MediaStream | null>(null)
     const scanningRef = useRef(false)
@@ -48,7 +49,7 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
 
     async function fetchShipment() {
         const supabase = createClient()
-        const { data } = await supabase
+        const { data, error } = await supabase
             .from('shipments')
             .select(`
                 id, shipped_at, picking_status,
@@ -60,6 +61,10 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
             `)
             .eq('id', id)
             .single()
+        if (error) {
+            console.error('Picking fetch error:', error)
+            setScanError(`データ取得エラー: ${error.message}`)
+        }
         setShipment(data as ShipmentInfo | null)
         setLoading(false)
     }
@@ -273,24 +278,29 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
         if (!shipment || !allPicked) return
         if (!confirm('全てのピッキングが完了しました。出荷を確定しますか？')) return
 
-        const supabase = createClient()
-        const { error } = await supabase
-            .from('shipments')
-            .update({ picking_status: 'completed' })
-            .eq('id', shipment.id)
+        setConfirming(true)
+        try {
+            const supabase = createClient()
+            const { error } = await supabase
+                .from('shipments')
+                .update({ picking_status: 'completed' })
+                .eq('id', shipment.id)
 
-        if (error) {
-            alert('出荷確定に失敗しました')
-            return
+            if (error) {
+                alert('出荷確定に失敗しました')
+                return
+            }
+
+            const treeIds = shipment.shipment_items
+                .map(i => i.tree?.id)
+                .filter((id): id is string => !!id)
+            await logActivityBulk('ship', treeIds, { picking: 'confirmed' })
+
+            stopScanning()
+            router.push(`/shipments/${shipment.id}`)
+        } finally {
+            setConfirming(false)
         }
-
-        const treeIds = shipment.shipment_items
-            .map(i => i.tree?.id)
-            .filter((id): id is string => !!id)
-        await logActivityBulk('ship', treeIds, { picking: 'confirmed' })
-
-        stopScanning()
-        router.push(`/shipments/${shipment.id}`)
     }
 
     // ピッキングスキップ（少量時）
@@ -298,25 +308,30 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
         if (!shipment) return
         if (!confirm('ピッキングをスキップして出荷確定しますか？')) return
 
-        const supabase = createClient()
-        const now = new Date().toISOString()
+        setConfirming(true)
+        try {
+            const supabase = createClient()
+            const now = new Date().toISOString()
 
-        // 全明細をpicked_at設定
-        for (const item of shipment.shipment_items) {
-            if (!item.picked_at) {
-                await supabase
-                    .from('shipment_items')
-                    .update({ picked_at: now })
-                    .eq('id', item.id)
+            // 全明細をpicked_at設定
+            for (const item of shipment.shipment_items) {
+                if (!item.picked_at) {
+                    await supabase
+                        .from('shipment_items')
+                        .update({ picked_at: now })
+                        .eq('id', item.id)
+                }
             }
+
+            await supabase
+                .from('shipments')
+                .update({ picking_status: 'completed' })
+                .eq('id', shipment.id)
+
+            router.push(`/shipments/${shipment.id}`)
+        } finally {
+            setConfirming(false)
         }
-
-        await supabase
-            .from('shipments')
-            .update({ picking_status: 'completed' })
-            .eq('id', shipment.id)
-
-        router.push(`/shipments/${shipment.id}`)
     }
 
     useEffect(() => {
@@ -426,17 +441,19 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
                         {allPicked && (
                             <button
                                 onClick={handleConfirm}
-                                className="w-full bg-green-600 hover:bg-green-700 text-white py-4 rounded-xl font-black text-lg shadow-lg transition-all active:scale-95"
+                                disabled={confirming}
+                                className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white py-4 rounded-xl font-black text-lg shadow-lg transition-all active:scale-95"
                             >
-                                出荷確定
+                                {confirming ? '確定処理中...' : '出荷確定'}
                             </button>
                         )}
                         {!allPicked && (
                             <button
                                 onClick={handleSkipPicking}
-                                className="w-full text-gray-500 hover:text-gray-300 py-2 text-sm font-bold"
+                                disabled={confirming}
+                                className="w-full text-gray-500 hover:text-gray-300 disabled:text-gray-700 py-2 text-sm font-bold"
                             >
-                                ピッキングをスキップして出荷確定
+                                {confirming ? '確定処理中...' : 'ピッキングをスキップして出荷確定'}
                             </button>
                         )}
                     </div>

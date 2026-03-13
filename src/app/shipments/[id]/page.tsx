@@ -51,6 +51,8 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
     const [receivedCount, setReceivedCount] = useState(0)
     const [manualPickTarget, setManualPickTarget] = useState<{ itemId: string; treeId: string | null; managementNumber: string } | null>(null)
     const [manualPickReason, setManualPickReason] = useState('')
+    const [manualPicking, setManualPicking] = useState(false)
+    const [fetchError, setFetchError] = useState<string | null>(null)
 
     async function fetchShipment() {
         const supabase = createClient()
@@ -86,6 +88,9 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
 
             if (error) {
                 console.error('Shipment fetch error:', error)
+                setFetchError(`データ取得エラー: ${error.message}`)
+                setLoading(false)
+                return
             }
             setShipment(data as ShipmentDetail | null)
 
@@ -152,22 +157,32 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
     // 未スキャン明細の手動確認（理由必須）
     async function handleManualPick() {
         if (!manualPickTarget || !manualPickReason.trim()) return
-        const supabase = createClient()
-        await supabase
-            .from('shipment_items')
-            .update({ picked_at: new Date().toISOString() })
-            .eq('id', manualPickTarget.itemId)
+        setManualPicking(true)
+        try {
+            const supabase = createClient()
+            const { error } = await supabase
+                .from('shipment_items')
+                .update({ picked_at: new Date().toISOString() })
+                .eq('id', manualPickTarget.itemId)
 
-        await logActivity('edit', manualPickTarget.treeId, {
-            manual_pick: true,
-            reason: manualPickReason.trim(),
-            management_number: manualPickTarget.managementNumber,
-            shipment_id: id,
-        })
+            if (error) {
+                alert('手動確認に失敗しました')
+                return
+            }
 
-        setManualPickTarget(null)
-        setManualPickReason('')
-        fetchShipment()
+            await logActivity('edit', manualPickTarget.treeId, {
+                manual_pick: true,
+                reason: manualPickReason.trim(),
+                management_number: manualPickTarget.managementNumber,
+                shipment_id: id,
+            })
+
+            setManualPickTarget(null)
+            setManualPickReason('')
+            fetchShipment()
+        } finally {
+            setManualPicking(false)
+        }
     }
 
     // 個別の木を出荷から取り消す
@@ -278,7 +293,11 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
                 <div className="text-center">
-                    <p className="text-gray-500 mb-4">出荷データが見つかりません</p>
+                    {fetchError ? (
+                        <p className="text-red-600 font-bold mb-4">{fetchError}</p>
+                    ) : (
+                        <p className="text-gray-500 mb-4">出荷データが見つかりません</p>
+                    )}
                     <Link href="/shipments" className="text-blue-600 hover:underline">出荷一覧に戻る</Link>
                 </div>
             </div>
@@ -423,10 +442,10 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                                 </button>
                                 <button
                                     onClick={handleManualPick}
-                                    disabled={!manualPickReason.trim()}
+                                    disabled={!manualPickReason.trim() || manualPicking}
                                     className="flex-1 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold text-sm transition-colors"
                                 >
-                                    確認済みにする
+                                    {manualPicking ? '処理中...' : '確認済みにする'}
                                 </button>
                             </div>
                         </div>

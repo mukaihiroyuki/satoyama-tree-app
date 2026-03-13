@@ -29,6 +29,7 @@ export default function EstimateDialog({ isOpen, onClose, selectedTrees, onSucce
     const [loading, setLoading] = useState(false)
     const [isAddingClient, setIsAddingClient] = useState(false)
     const [newClientName, setNewClientName] = useState('')
+    const [addingClient, setAddingClient] = useState(false)
 
     useEffect(() => {
         async function fetchClients() {
@@ -51,14 +52,23 @@ export default function EstimateDialog({ isOpen, onClose, selectedTrees, onSucce
 
     async function handleAddClient() {
         if (!newClientName) return
-        const supabase = createClient()
-        const { data } = await supabase.from('clients').insert({ name: newClientName }).select().single()
-        if (data) {
-            setClients(prev => [...prev, { ...data, default_rate: null }].sort((a, b) => a.name.localeCompare(b.name)))
-            setSelectedClientId(data.id)
-            setRate(1)
-            setNewClientName('')
-            setIsAddingClient(false)
+        setAddingClient(true)
+        try {
+            const supabase = createClient()
+            const { data, error } = await supabase.from('clients').insert({ name: newClientName }).select().single()
+            if (error) {
+                alert('クライアント登録に失敗しました')
+                return
+            }
+            if (data) {
+                setClients(prev => [...prev, { ...data, default_rate: null }].sort((a, b) => a.name.localeCompare(b.name)))
+                setSelectedClientId(data.id)
+                setRate(1)
+                setNewClientName('')
+                setIsAddingClient(false)
+            }
+        } finally {
+            setAddingClient(false)
         }
     }
 
@@ -161,9 +171,10 @@ export default function EstimateDialog({ isOpen, onClose, selectedTrees, onSucce
                                 />
                                 <button
                                     onClick={handleAddClient}
-                                    className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold"
+                                    disabled={addingClient || !newClientName.trim()}
+                                    className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold disabled:bg-gray-400"
                                 >
-                                    保存
+                                    {addingClient ? '...' : '保存'}
                                 </button>
                             </div>
                         ) : (
