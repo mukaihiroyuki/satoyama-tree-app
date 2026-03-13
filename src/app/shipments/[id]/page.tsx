@@ -92,7 +92,7 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                 setLoading(false)
                 return
             }
-            setShipment(data as ShipmentDetail | null)
+            setShipment(data as unknown as ShipmentDetail | null)
 
             // 受入チェック済み件数を取得
             if (data) {
