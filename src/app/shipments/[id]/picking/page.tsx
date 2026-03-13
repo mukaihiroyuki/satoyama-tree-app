@@ -36,11 +36,14 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
     const [lastScanned, setLastScanned] = useState<string | null>(null)
     const [scanError, setScanError] = useState<string | null>(null)
     const [confirming, setConfirming] = useState(false)
+    const [pendingConfirm, setPendingConfirm] = useState<PickingItem | null>(null)
+    const [savingPick, setSavingPick] = useState(false)
     const videoRef = useRef<HTMLVideoElement>(null)
     const streamRef = useRef<MediaStream | null>(null)
     const scanningRef = useRef(false)
     const processingRef = useRef(false)
     const shipmentRef = useRef<ShipmentInfo | null>(null)
+    const scanLoopRef = useRef<(() => void) | null>(null)
 
     // shipmentが更新されたらrefも同期（スキャンループが常に最新を参照）
     useEffect(() => {
@@ -78,7 +81,7 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
     const totalCount = shipment?.shipment_items.length || 0
     const allPicked = pickedCount === totalCount && totalCount > 0
 
-    // QRスキャン処理（refから最新shipmentを参照、processingRefで二重処理防止）
+    // QRスキャン処理: スキャン → 一時停止 → 確認パネル表示
     async function processQrCode(qrData: string) {
         const currentShipment = shipmentRef.current
         if (!currentShipment) return
@@ -93,36 +96,20 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
 
             if (!treeId) {
                 setScanError('QRコードを読み取れませんでした')
+                playError()
+                setTimeout(() => setScanError(null), 4000)
                 return
             }
 
-            // この出荷に含まれている木か確認
+            // この出荷に含まれている木か確認（ローカル完結）
             const item = currentShipment.shipment_items.find(i => i.tree?.id === treeId)
             if (!item) {
-                // DBに存在するか確認して、エラーメッセージを分岐
-                const supabase = createClient()
-                const { data: tree } = await supabase
-                    .from('trees')
-                    .select('management_number')
-                    .eq('id', treeId)
-                    .single()
-
-                if (!tree) {
-                    setScanError('この管理番号はDBに登録されていません。番号を確認してください')
-                    logActivity('scan_error', null, {
-                        reason: 'not_in_db',
-                        scanned_id: treeId,
-                        shipment_id: currentShipment.id,
-                    })
-                } else {
-                    setScanError(`${tree.management_number || 'この木'}はこの出荷の対象ではありません`)
-                    logActivity('scan_error', treeId, {
-                        reason: 'not_in_shipment',
-                        management_number: tree.management_number,
-                        shipment_id: currentShipment.id,
-                    })
-                }
-                // エラーフィードバック: 長いバイブ + ブッ
+                setScanError('この木はこの出荷の対象ではありません')
+                logActivity('scan_error', treeId, {
+                    reason: 'not_in_shipment',
+                    scanned_id: treeId,
+                    shipment_id: currentShipment.id,
+                }).catch(() => {})
                 navigator.vibrate?.(500)
                 playError()
                 setTimeout(() => setScanError(null), 4000)
@@ -137,37 +124,80 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
                 return
             }
 
-            // ピッキング済みにする
-            const supabase = createClient()
-            const { error } = await supabase
-                .from('shipment_items')
-                .update({ picked_at: new Date().toISOString() })
-                .eq('id', item.id)
-
-            if (error) {
-                setScanError('記録に失敗しました')
-                return
-            }
-
-            // ステータスをin_progressに（初回スキャン時）
-            if (currentShipment.picking_status === 'pending') {
-                await supabase
-                    .from('shipments')
-                    .update({ picking_status: 'in_progress' })
-                    .eq('id', currentShipment.id)
-            }
-
-            const speciesName = item.tree?.species
-                ? (Array.isArray(item.tree.species) ? item.tree.species[0]?.name : item.tree.species.name)
-                : '不明'
-            setLastScanned(`${item.tree?.management_number || '-'} ${speciesName}`)
+            // スキャン一時停止 → 確認パネル表示
+            scanningRef.current = false
             setScanError(null)
-            // 成功フィードバック: バイブ + ピコン
             navigator.vibrate?.([100, 50, 100])
             playSuccess()
-            await fetchShipment()
+            setPendingConfirm(item)
         } finally {
             processingRef.current = false
+        }
+    }
+
+    // 確認ボタン押下: 楽観的更新 + Supabaseバックグラウンド書き込み
+    async function handleConfirmPick() {
+        if (!pendingConfirm || !shipment) return
+        setSavingPick(true)
+
+        const item = pendingConfirm
+        const now = new Date().toISOString()
+        const speciesName = item.tree?.species
+            ? (Array.isArray(item.tree.species) ? item.tree.species[0]?.name : item.tree.species.name)
+            : '不明'
+
+        // ローカルstate即時更新
+        setShipment(prev => {
+            if (!prev) return prev
+            return {
+                ...prev,
+                picking_status: prev.picking_status === 'pending' ? 'in_progress' : prev.picking_status,
+                shipment_items: prev.shipment_items.map(i =>
+                    i.id === item.id ? { ...i, picked_at: now } : i
+                ),
+            }
+        })
+
+        setLastScanned(`${item.tree?.management_number || '-'} ${speciesName}`)
+        setPendingConfirm(null)
+        setSavingPick(false)
+
+        // スキャン再開
+        scanningRef.current = true
+        resumeScanLoop()
+
+        // Supabase更新はバックグラウンド
+        const supabase = createClient()
+        supabase
+            .from('shipment_items')
+            .update({ picked_at: now })
+            .eq('id', item.id)
+            .then(({ error }) => {
+                if (error) console.error('[picking] picked_at update failed:', error)
+            })
+
+        if (shipment.picking_status === 'pending') {
+            supabase
+                .from('shipments')
+                .update({ picking_status: 'in_progress' })
+                .eq('id', shipment.id)
+                .then(({ error }) => {
+                    if (error) console.error('[picking] status update failed:', error)
+                })
+        }
+    }
+
+    // 確認スキップ: スキャン再開のみ
+    function handleDismissConfirm() {
+        setPendingConfirm(null)
+        scanningRef.current = true
+        resumeScanLoop()
+    }
+
+    // スキャンループ再開（確認後にカメラを止めずに再開）
+    function resumeScanLoop() {
+        if (scanLoopRef.current && scanningRef.current) {
+            setTimeout(scanLoopRef.current, 200)
         }
     }
 
@@ -200,10 +230,10 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
                 const canvas = document.createElement('canvas')
                 const ctx = canvas.getContext('2d')!
                 const scanLoop = async () => {
-                    if (!scanningRef.current || !videoRef.current) return
+                    if (!videoRef.current) return
+                    if (!scanningRef.current) return // 一時停止中はループ停止
                     if (!processingRef.current) {
                         try {
-                            // 中央60%をクロップして解析（精度向上 + 負荷軽減）
                             const video = videoRef.current
                             if (video.readyState === video.HAVE_ENOUGH_DATA) {
                                 const vw = video.videoWidth
@@ -224,6 +254,7 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
                     }
                     if (scanningRef.current) setTimeout(scanLoop, 200)
                 }
+                scanLoopRef.current = scanLoop
                 setTimeout(scanLoop, 200)
             } else {
                 // jsQR fallback (iOS PWA等)
@@ -231,11 +262,11 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
                 const canvas = document.createElement('canvas')
                 const ctx = canvas.getContext('2d')!
                 const scanLoop = () => {
-                    if (!scanningRef.current || !videoRef.current) return
+                    if (!videoRef.current) return
+                    if (!scanningRef.current) return // 一時停止中はループ停止
                     if (!processingRef.current) {
                         const video = videoRef.current
                         if (video.readyState === video.HAVE_ENOUGH_DATA) {
-                            // 中央60%をクロップして解析
                             const vw = video.videoWidth
                             const vh = video.videoHeight
                             const cropW = Math.round(vw * 0.6)
@@ -256,6 +287,7 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
                     }
                     if (scanningRef.current) setTimeout(scanLoop, 200)
                 }
+                scanLoopRef.current = scanLoop
                 setTimeout(scanLoop, 200)
             }
         } catch {
@@ -266,7 +298,9 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
 
     function stopScanning() {
         scanningRef.current = false
+        scanLoopRef.current = null
         setScanning(false)
+        setPendingConfirm(null)
         if (streamRef.current) {
             streamRef.current.getTracks().forEach(t => t.stop())
             streamRef.current = null
@@ -406,6 +440,43 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
                 {scanError && (
                     <div className="bg-red-900/50 border border-red-500 rounded-xl p-4 text-center animate-in fade-in duration-200">
                         <p className="text-red-400 font-bold">{scanError}</p>
+                    </div>
+                )}
+
+                {/* 確認パネル */}
+                {pendingConfirm && (
+                    <div className="bg-yellow-900/60 border-2 border-yellow-500 rounded-xl p-5 animate-in fade-in duration-200">
+                        <p className="text-yellow-400 text-sm font-bold mb-3">スキャン読取り — 確認してください</p>
+                        <div className="bg-gray-800 rounded-lg p-4 mb-4">
+                            <p className="text-white text-xl font-black">
+                                {pendingConfirm.tree?.management_number || '-'}
+                            </p>
+                            <p className="text-gray-300 text-sm mt-1">
+                                {pendingConfirm.tree?.species
+                                    ? (Array.isArray(pendingConfirm.tree.species) ? pendingConfirm.tree.species[0]?.name : pendingConfirm.tree.species.name)
+                                    : '不明'}
+                                {' / '}
+                                {pendingConfirm.tree?.height}m
+                                {' / '}
+                                {pendingConfirm.tree?.trunk_count}本立ち
+                            </p>
+                        </div>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={handleDismissConfirm}
+                                className="flex-1 py-3 border border-gray-500 rounded-xl font-bold text-gray-300 hover:bg-gray-700 transition-colors"
+                                disabled={savingPick}
+                            >
+                                スキップ
+                            </button>
+                            <button
+                                onClick={handleConfirmPick}
+                                disabled={savingPick}
+                                className="flex-[2] bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white py-3 rounded-xl font-black text-lg shadow-lg shadow-green-900 transition-all active:scale-95"
+                            >
+                                {savingPick ? '保存中...' : '確定'}
+                            </button>
+                        </div>
                     </div>
                 )}
 
