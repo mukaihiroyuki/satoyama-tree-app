@@ -10,6 +10,42 @@ const withPWA = withPWAInit({
   fallbacks: {
     document: "/~offline",
   },
+  extendDefaultRuntimeCaching: true,
+  workboxOptions: {
+    runtimeCaching: [
+      {
+        // トップページ: キャッシュ即返し + 裏で更新
+        urlPattern: /^https?:\/\/[^/]+\/$/,
+        handler: "StaleWhileRevalidate",
+        options: {
+          cacheName: "start-url",
+          expiration: { maxEntries: 1, maxAgeSeconds: 86400 },
+        },
+      },
+      {
+        // ページナビゲーション（RSC）: キャッシュ即返し + 裏で更新
+        urlPattern: ({ request, sameOrigin }: { request: Request; url: URL; sameOrigin: boolean }) => {
+          return request.headers.get("RSC") === "1" && sameOrigin
+        },
+        handler: "StaleWhileRevalidate",
+        options: {
+          cacheName: "pages-rsc",
+          expiration: { maxEntries: 32, maxAgeSeconds: 86400 },
+        },
+      },
+      {
+        // 通常ページ: キャッシュ即返し + 裏で更新
+        urlPattern: ({ url, sameOrigin }: { request: Request; url: URL; sameOrigin: boolean }) => {
+          return sameOrigin && !url.pathname.startsWith("/api/")
+        },
+        handler: "StaleWhileRevalidate",
+        options: {
+          cacheName: "pages",
+          expiration: { maxEntries: 32, maxAgeSeconds: 86400 },
+        },
+      },
+    ],
+  },
 });
 
 const nextConfig: NextConfig = {
