@@ -15,6 +15,28 @@ export async function getAllTrees(
     const withEdits = await applyPendingEditsToList(cached)
     const result = await mergePendingRegistrations(withEdits)
 
+    // キャッシュが空の場合（初回起動・ストレージクリア後）はSupabaseを待つ
+    if (result.length === 0) {
+        try {
+            const supabase = createClient()
+            const { data, error } = await supabase
+                .from('trees')
+                .select('*, species:species_master(id, name), client:clients(id, name), shipment_items(shipments(shipped_at))')
+                .order('created_at', { ascending: false })
+
+            if (!error && data) {
+                const trees = flattenShippedAt(data)
+                await db.trees.clear()
+                await db.trees.bulkPut(trees)
+                const withEdits2 = await applyPendingEditsToList(trees)
+                return mergePendingRegistrations(withEdits2)
+            }
+        } catch {
+            // オフラインなら空配列を返す
+        }
+        return result
+    }
+
     // 2. バックグラウンドでSupabaseフェッチ（awaitしない）
     if (onRefresh) {
         refreshTreesFromSupabase(onRefresh).catch(() => {/* 静かに失敗 */})
@@ -56,6 +78,27 @@ export async function getTree(
     // 1. キャッシュから即座に返す
     const cached = await db.trees.get(id)
     const result = cached ? await applyPendingEdits(cached) : null
+
+    // キャッシュにない場合（初回起動・ストレージクリア後）はSupabaseを待つ
+    if (!result) {
+        try {
+            const supabase = createClient()
+            const { data, error } = await supabase
+                .from('trees')
+                .select('*, species:species_master(id, name), client:clients(id, name), shipment_items(shipments(shipped_at))')
+                .eq('id', id)
+                .single()
+
+            if (!error && data) {
+                const tree = flattenShippedAt([data])[0]
+                await db.trees.put(tree)
+                return applyPendingEdits(tree)
+            }
+        } catch {
+            // オフラインならnullを返す
+        }
+        return null
+    }
 
     // 2. バックグラウンドでSupabaseフェッチ
     if (onRefresh) {
