@@ -6,8 +6,10 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import type { EstimateStatus } from '@/types/database'
 import ShipmentDialog from '@/components/ShipmentDialog'
+import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
 import { ASSIGNEES } from '@/lib/constants'
 import { logActivity } from '@/lib/activity-log'
+import { useRouter } from 'next/navigation'
 
 const PdfDownloadButton = dynamic(() => import('@/components/PdfDownloadButton'), { ssr: false })
 
@@ -57,11 +59,14 @@ const statusColors: Record<string, string> = {
 
 export default function EstimateDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = React.use(params)
+    const router = useRouter()
     const [estimate, setEstimate] = useState<EstimateDetail | null>(null)
     const [loading, setLoading] = useState(true)
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
     const [updatingStatus, setUpdatingStatus] = useState(false)
     const [isShipmentDialogOpen, setIsShipmentDialogOpen] = useState(false)
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+    const [deleting, setDeleting] = useState(false)
 
     // 編集モード
     const [isEditing, setIsEditing] = useState(false)
@@ -330,6 +335,47 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
         }
     }
 
+    // 見積削除
+    async function handleDeleteEstimate() {
+        if (!estimate) return
+        setDeleting(true)
+        const supabase = createClient()
+
+        // 出荷が紐づいているか確認
+        const { data: shipments } = await supabase
+            .from('shipments')
+            .select('id')
+            .eq('estimate_id', estimate.id)
+            .limit(1)
+
+        if (shipments && shipments.length > 0) {
+            alert('この見積には出荷が紐づいているため削除できません。')
+            setDeleting(false)
+            return
+        }
+
+        // estimate_itemsはFK CASCADEで自動削除
+        const { error } = await supabase
+            .from('estimates')
+            .delete()
+            .eq('id', estimate.id)
+
+        if (error) {
+            console.error('見積削除エラー:', error)
+            alert('削除に失敗しました')
+            setDeleting(false)
+            return
+        }
+
+        await logActivity('delete', null, {
+            estimate_number: estimate.estimate_number,
+            client_name: Array.isArray(estimate.client) ? estimate.client[0]?.name : estimate.client?.name,
+            item_count: estimate.estimate_items.length,
+        })
+
+        router.push('/estimates')
+    }
+
     if (loading) {
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -378,12 +424,23 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
                         <h1 className="text-xl font-bold text-gray-800">見積詳細</h1>
                     </div>
                     {!isEditing && estimate.status !== '出荷済' && (
-                        <button
-                            onClick={startEditing}
-                            className="text-sm font-bold text-emerald-700 bg-emerald-50 px-4 py-2 rounded-lg border border-emerald-200 hover:bg-emerald-100"
-                        >
-                            編集
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={startEditing}
+                                className="text-sm font-bold text-emerald-700 bg-emerald-50 px-4 py-2 rounded-lg border border-emerald-200 hover:bg-emerald-100"
+                            >
+                                編集
+                            </button>
+                            {estimate.status === '下書き' && (
+                                <button
+                                    onClick={() => setIsDeleteDialogOpen(true)}
+                                    disabled={deleting}
+                                    className="text-sm font-bold text-red-600 bg-red-50 px-4 py-2 rounded-lg border border-red-200 hover:bg-red-100 disabled:opacity-50"
+                                >
+                                    削除
+                                </button>
+                            )}
+                        </div>
                     )}
                 </div>
             </header>
@@ -747,6 +804,16 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
                     </div>
                 </div>
             </main>
+
+            {/* 見積削除ダイアログ */}
+            <DeleteConfirmDialog
+                isOpen={isDeleteDialogOpen}
+                onClose={() => setIsDeleteDialogOpen(false)}
+                onConfirm={handleDeleteEstimate}
+                itemCount={totalItems}
+                itemLabel={estimate.estimate_number}
+                clientName={clientName}
+            />
 
             {/* 出荷ダイアログ（見積→出荷変換用） */}
             <ShipmentDialog
