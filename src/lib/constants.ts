@@ -18,3 +18,6 @@ export const STAFF = [
 ] as const;
 
 export const ASSIGNEES = STAFF.map(s => s.name);
+
+// 樹種セレクトで上位に表示する優先樹種（表示順）
+export const PRIORITY_SPECIES = ['アオダモ', 'モミジ', 'ツツジ', 'ナツハゼ'] as const;

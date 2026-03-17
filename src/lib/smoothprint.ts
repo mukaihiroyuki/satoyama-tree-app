@@ -19,6 +19,8 @@ export interface TreeLabelData {
     managementNumber: string | null
     treeId: string
     notes?: string | null
+    height?: number | null
+    trunkCount?: number | null
 }
 
 /**
@@ -50,6 +52,18 @@ export function buildSmoothPrintUrl(
 
     if (data.managementNumber) {
         parts.push(`text_MGMT_NUM=${encodeURIComponent(data.managementNumber)}`)
+    }
+
+    // 樹高・株立ちを1行にまとめる（例: "H:5m 株立2"）
+    const infoParts: string[] = []
+    if (data.height != null && data.height > 0) {
+        infoParts.push(`H:${data.height}m`)
+    }
+    if (data.trunkCount != null && data.trunkCount > 1) {
+        infoParts.push(`株立${data.trunkCount}`)
+    }
+    if (infoParts.length > 0) {
+        parts.push(`text_TREE_INFO=${encodeURIComponent(infoParts.join(' '))}`)
     }
 
     if (data.notes) {

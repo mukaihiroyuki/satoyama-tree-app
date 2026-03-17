@@ -62,6 +62,8 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
             managementNumber: tree.management_number,
             treeId: tree.id,
             notes: tree.notes,
+            height: tree.height,
+            trunkCount: tree.trunk_count,
         }
         const baseUrl = window.location.origin
         const url = buildSmoothPrintUrl(labelData, baseUrl)

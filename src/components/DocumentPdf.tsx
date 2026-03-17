@@ -295,6 +295,10 @@ export default function DocumentPdf({
     }
     // 本数の多い順にソート
     speciesGroups.sort((a, b) => b.items.length - a.items.length);
+    // グループ内を管理番号の昇順にソート
+    for (const group of speciesGroups) {
+        group.items.sort((a, b) => a.managementNumber.localeCompare(b.managementNumber));
+    }
     let runningNo = 0;
 
     return (

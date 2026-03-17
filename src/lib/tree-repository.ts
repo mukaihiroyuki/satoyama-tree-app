@@ -1,5 +1,6 @@
 import { db, type CachedTree, type CachedSpecies, type PendingRegistration } from './db'
 import { createClient } from './supabase/client'
+import { PRIORITY_SPECIES } from './constants'
 
 export type TreeUpdate = Record<string, string | number | null>
 
@@ -184,6 +185,20 @@ async function refreshTreeFromSupabase(id: string, onRefresh: (tree: CachedTree 
 }
 
 // ------------------------------------------------------------------
+// 樹種ソート: 優先樹種を上位に、残りはname_kana順
+// ------------------------------------------------------------------
+function sortSpecies(list: CachedSpecies[]): CachedSpecies[] {
+    return [...list].sort((a, b) => {
+        const ai = PRIORITY_SPECIES.indexOf(a.name as typeof PRIORITY_SPECIES[number])
+        const bi = PRIORITY_SPECIES.indexOf(b.name as typeof PRIORITY_SPECIES[number])
+        if (ai !== -1 && bi !== -1) return ai - bi
+        if (ai !== -1) return -1
+        if (bi !== -1) return 1
+        return (a.name_kana || a.name).localeCompare(b.name_kana || b.name)
+    })
+}
+
+// ------------------------------------------------------------------
 // 樹種マスタ取得（オフラインファースト）
 // ------------------------------------------------------------------
 export async function getAllSpecies(
@@ -203,7 +218,7 @@ export async function getAllSpecies(
 
             if (error) {
                 console.error('[getAllSpecies] Supabase error:', error)
-                return cached
+                return sortSpecies(cached)
             }
 
             if (data && data.length > 0) {
@@ -213,12 +228,12 @@ export async function getAllSpecies(
                 } catch (cacheErr) {
                     console.error('[getAllSpecies] Cache write failed:', cacheErr)
                 }
-                return data as CachedSpecies[]
+                return sortSpecies(data as CachedSpecies[])
             }
         } catch (err) {
             console.error('[getAllSpecies] Network error:', err)
         }
-        return cached
+        return sortSpecies(cached)
     }
 
     // 2. キャッシュがある場合のみバックグラウンドで更新
@@ -226,7 +241,7 @@ export async function getAllSpecies(
         refreshSpeciesFromSupabase(onRefresh).catch(() => {/* 静かに失敗 */})
     }
 
-    return cached
+    return sortSpecies(cached)
 }
 
 async function refreshSpeciesFromSupabase(onRefresh?: (species: CachedSpecies[]) => void) {
@@ -241,7 +256,7 @@ async function refreshSpeciesFromSupabase(onRefresh?: (species: CachedSpecies[])
 
         await db.species.clear()
         await db.species.bulkPut(data as CachedSpecies[])
-        onRefresh?.(data as CachedSpecies[])
+        onRefresh?.(sortSpecies(data as CachedSpecies[]))
     } catch {
         // 静かに無視
     }
