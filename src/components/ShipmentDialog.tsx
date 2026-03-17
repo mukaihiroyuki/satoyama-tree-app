@@ -82,6 +82,20 @@ export default function ShipmentDialog({ isOpen, onClose, selectedIds, selectedT
         const supabase = createClient()
 
         try {
+            // 0. 出荷済み樹木の二重出荷チェック
+            const { data: alreadyShipped } = await supabase
+                .from('trees')
+                .select('id, management_number')
+                .in('id', selectedIds)
+                .eq('status', 'shipped')
+
+            if (alreadyShipped && alreadyShipped.length > 0) {
+                const numbers = alreadyShipped.map(t => t.management_number || t.id).join(', ')
+                alert(`以下の樹木は既に出荷済みです。出荷を取り消してから再度出荷してください。\n\n${numbers}`)
+                setLoading(false)
+                return
+            }
+
             // 1. 出荷ヘッダーの作成
             const insertData: Record<string, unknown> = {
                 client_id: selectedClientId,

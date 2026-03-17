@@ -53,6 +53,9 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
     const [manualPickReason, setManualPickReason] = useState('')
     const [manualPicking, setManualPicking] = useState(false)
     const [fetchError, setFetchError] = useState<string | null>(null)
+    const [isEditingPrices, setIsEditingPrices] = useState(false)
+    const [editPrices, setEditPrices] = useState<Record<string, number>>({})
+    const [savingPrices, setSavingPrices] = useState(false)
 
     async function fetchShipment() {
         const supabase = createClient()
@@ -182,6 +185,41 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
             fetchShipment()
         } finally {
             setManualPicking(false)
+        }
+    }
+
+    function startEditingPrices() {
+        if (!shipment) return
+        const prices: Record<string, number> = {}
+        for (const item of shipment.shipment_items) {
+            prices[item.id] = item.unit_price || 0
+        }
+        setEditPrices(prices)
+        setIsEditingPrices(true)
+    }
+
+    async function handleSavePrices() {
+        if (!shipment) return
+        setSavingPrices(true)
+        const supabase = createClient()
+        try {
+            for (const [itemId, price] of Object.entries(editPrices)) {
+                const original = shipment.shipment_items.find(i => i.id === itemId)
+                if (original && original.unit_price !== price) {
+                    const { error } = await supabase
+                        .from('shipment_items')
+                        .update({ unit_price: price })
+                        .eq('id', itemId)
+                    if (error) throw error
+                }
+            }
+            setIsEditingPrices(false)
+            fetchShipment()
+        } catch (error) {
+            console.error('単価更新エラー:', error)
+            alert('単価の更新に失敗しました')
+        } finally {
+            setSavingPrices(false)
         }
     }
 
@@ -492,6 +530,30 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                         shipmentId={shipment.id}
                         label="請求書ダウンロード"
                     />
+                    {!isEditingPrices ? (
+                        <button
+                            onClick={startEditingPrices}
+                            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold text-sm border border-gray-200 transition-colors"
+                        >
+                            単価編集
+                        </button>
+                    ) : (
+                        <div className="flex gap-2 w-full">
+                            <button
+                                onClick={() => setIsEditingPrices(false)}
+                                className="flex-1 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl font-bold text-sm border border-gray-200 transition-colors"
+                            >
+                                キャンセル
+                            </button>
+                            <button
+                                onClick={handleSavePrices}
+                                disabled={savingPrices}
+                                className="flex-[2] px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white rounded-xl font-bold text-sm transition-colors"
+                            >
+                                {savingPrices ? '保存中...' : '単価を保存'}
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {/* 出荷取消 */}
@@ -573,7 +635,21 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                                                                 {item.tree?.trunk_count ?? '-'}
                                                             </td>
                                                             <td className="px-4 py-2.5 text-right font-bold text-gray-800">
-                                                                &yen;{(item.unit_price || 0).toLocaleString()}
+                                                                {isEditingPrices ? (
+                                                                    <input
+                                                                        type="number"
+                                                                        value={editPrices[item.id] ?? item.unit_price ?? 0}
+                                                                        onChange={(e) => setEditPrices(prev => ({
+                                                                            ...prev,
+                                                                            [item.id]: parseInt(e.target.value) || 0,
+                                                                        }))}
+                                                                        step="1"
+                                                                        className="w-28 border border-blue-300 rounded px-2 py-1 text-right text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                                        onClick={(e) => e.stopPropagation()}
+                                                                    />
+                                                                ) : (
+                                                                    <>&yen;{(item.unit_price || 0).toLocaleString()}</>
+                                                                )}
                                                             </td>
                                                             <td className="px-4 py-2.5 text-right">
                                                                 <button
