@@ -489,6 +489,13 @@ export async function registerTreeOffline(reg: Omit<PendingRegistration, 'id' | 
 // ------------------------------------------------------------------
 // 未同期の新規登録を同期
 // ------------------------------------------------------------------
+// temp_id → 新IDのマッピング（同期後のリダイレクトに使用）
+const syncedIdMap = new Map<string, string>()
+
+export function getSyncedNewId(tempId: string): string | undefined {
+    return syncedIdMap.get(tempId)
+}
+
 async function syncPendingRegistrations(): Promise<number> {
     const pending = await db.pendingRegistrations
         .where('synced')
@@ -545,6 +552,7 @@ async function syncPendingRegistrations(): Promise<number> {
             // キャッシュの仮データを本物のIDで差し替え
             await db.trees.delete(reg.temp_id)
             if (newTree) {
+                syncedIdMap.set(reg.temp_id, newTree.id)
                 const species = await db.species.get(reg.species_id)
                 await db.trees.put({
                     ...newTree,

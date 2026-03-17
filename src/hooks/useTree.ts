@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { type CachedTree } from '@/lib/db'
 import * as repo from '@/lib/tree-repository'
 import { useOnlineStatus } from './useOnlineStatus'
 
 export function useTree(id: string) {
+    const router = useRouter()
     const [tree, setTree] = useState<CachedTree | null>(null)
     const [loading, setLoading] = useState(true)
     const [saveMessage, setSaveMessage] = useState<string | null>(null)
@@ -28,7 +30,7 @@ export function useTree(id: string) {
         return () => { cancelled = true }
     }, [id])
 
-    // オンライン復帰時: 同期 → 再取得
+    // オンライン復帰時: 同期 → 再取得（IDが変わったらリダイレクト）
     useEffect(() => {
         if (!isOnline) return
         let cancelled = false
@@ -37,16 +39,23 @@ export function useTree(id: string) {
             if (count > 0) {
                 await repo.syncPendingEdits()
             }
+            if (cancelled) return
+
+            // 同期でIDが変わった場合（仮ID→Supabase正式ID）はリダイレクト
+            const newId = repo.getSyncedNewId(id)
+            if (newId) {
+                router.replace(`/trees/${newId}`)
+                return
+            }
+
+            const data = await repo.getTree(id)
             if (!cancelled) {
-                const data = await repo.getTree(id)
-                if (!cancelled) {
-                    setTree(data)
-                }
+                setTree(data)
             }
         }
         sync()
         return () => { cancelled = true }
-    }, [isOnline, id])
+    }, [isOnline, id, router])
 
     const saveEdit = useCallback(async (updates: repo.TreeUpdate) => {
         const { offline } = await repo.saveEdit(id, updates)
