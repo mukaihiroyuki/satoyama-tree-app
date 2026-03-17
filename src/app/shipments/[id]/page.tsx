@@ -23,6 +23,7 @@ interface ShipmentDetail {
     shipment_items: {
         id: string
         unit_price: number
+        original_price: number | null
         discount_amount: number | null
         picked_at: string | null
         tree: {
@@ -55,6 +56,7 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
     const [fetchError, setFetchError] = useState<string | null>(null)
     const [isEditingPrices, setIsEditingPrices] = useState(false)
     const [editPrices, setEditPrices] = useState<Record<string, number>>({})
+    const [editRate, setEditRate] = useState<string>('')
     const [savingPrices, setSavingPrices] = useState(false)
 
     async function fetchShipment() {
@@ -75,6 +77,7 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                     shipment_items(
                         id,
                         unit_price,
+                        original_price,
                         discount_amount,
                         picked_at,
                         tree:trees(
@@ -195,7 +198,25 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
             prices[item.id] = item.unit_price || 0
         }
         setEditPrices(prices)
+        // 掛け率を推定（original_priceがある最初のitemから逆算）
+        const sample = shipment.shipment_items.find(i => i.original_price && i.original_price > 0)
+        if (sample && sample.original_price) {
+            const estimated = sample.unit_price / sample.original_price
+            setEditRate(String(parseFloat(estimated.toFixed(2))))
+        } else {
+            setEditRate('')
+        }
         setIsEditingPrices(true)
+    }
+
+    function applyRate(rateValue: number) {
+        if (!shipment) return
+        const prices: Record<string, number> = {}
+        for (const item of shipment.shipment_items) {
+            const base = item.original_price || item.unit_price || 0
+            prices[item.id] = Math.round(base * rateValue)
+        }
+        setEditPrices(prices)
     }
 
     async function handleSavePrices() {
@@ -346,7 +367,9 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
         ? shipment.client[0]?.name
         : shipment.client?.name || '不明'
     const totalItems = shipment.shipment_items.length
-    const totalAmount = shipment.shipment_items.reduce((sum, i) => sum + (i.unit_price || 0), 0)
+    const totalAmount = isEditingPrices
+        ? Object.values(editPrices).reduce((sum, p) => sum + p, 0)
+        : shipment.shipment_items.reduce((sum, i) => sum + (i.unit_price || 0), 0)
     const unscannedItems = shipment.shipment_items.filter(i => !i.picked_at)
 
     return (
@@ -538,20 +561,55 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                             単価編集
                         </button>
                     ) : (
-                        <div className="flex gap-2 w-full">
-                            <button
-                                onClick={() => setIsEditingPrices(false)}
-                                className="flex-1 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl font-bold text-sm border border-gray-200 transition-colors"
-                            >
-                                キャンセル
-                            </button>
-                            <button
-                                onClick={handleSavePrices}
-                                disabled={savingPrices}
-                                className="flex-[2] px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white rounded-xl font-bold text-sm transition-colors"
-                            >
-                                {savingPrices ? '保存中...' : '単価を保存'}
-                            </button>
+                        <div className="w-full space-y-3">
+                            {/* 掛け率一括変更 */}
+                            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                                <label className="block text-sm font-bold text-blue-800 mb-2">掛け率で一括変更</label>
+                                <div className="flex items-center gap-3">
+                                    <input
+                                        type="number"
+                                        value={editRate}
+                                        onChange={(e) => setEditRate(e.target.value)}
+                                        step="0.01"
+                                        min="0"
+                                        max="1"
+                                        placeholder="0.5"
+                                        className="w-24 border border-blue-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    />
+                                    <button
+                                        onClick={() => {
+                                            const r = parseFloat(editRate)
+                                            if (r > 0 && r <= 1) applyRate(r)
+                                            else alert('掛け率は0〜1の範囲で入力してください')
+                                        }}
+                                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-sm transition-colors"
+                                    >
+                                        適用
+                                    </button>
+                                    <span className="text-sm text-blue-600">
+                                        {editRate && parseFloat(editRate) > 0 && parseFloat(editRate) < 1
+                                            ? `${Math.round(parseFloat(editRate) * 100)}%（${Math.round(parseFloat(editRate) * 10)}掛け）`
+                                            : ''}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-blue-500 mt-1">※ 上代 × 掛け率で全明細の単価を一括計算します。個別の微調整は下の明細を展開してください。</p>
+                            </div>
+                            {/* 保存・キャンセル */}
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setIsEditingPrices(false)}
+                                    className="flex-1 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl font-bold text-sm border border-gray-200 transition-colors"
+                                >
+                                    キャンセル
+                                </button>
+                                <button
+                                    onClick={handleSavePrices}
+                                    disabled={savingPrices}
+                                    className="flex-[2] px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white rounded-xl font-bold text-sm transition-colors"
+                                >
+                                    {savingPrices ? '保存中...' : '単価を保存'}
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -595,7 +653,10 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                                             </span>
                                         </div>
                                         <span className="font-bold text-blue-700">
-                                            &yen;{group.totalPrice.toLocaleString()}
+                                            &yen;{(isEditingPrices
+                                                ? group.items.reduce((sum, i) => sum + (editPrices[i.id] ?? i.unit_price ?? 0), 0)
+                                                : group.totalPrice
+                                            ).toLocaleString()}
                                         </span>
                                     </button>
 
