@@ -1,19 +1,19 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useRouter } from 'next/navigation'
 import { type CachedTree } from '@/lib/db'
 import * as repo from '@/lib/tree-repository'
 import { useOnlineStatus } from './useOnlineStatus'
 
 export function useTree(id: string) {
-    const router = useRouter()
     const [tree, setTree] = useState<CachedTree | null>(null)
     const [loading, setLoading] = useState(true)
     const [saveMessage, setSaveMessage] = useState<string | null>(null)
     const isOnline = useOnlineStatus()
     const fetchRef = useRef(0)
+    const activeIdRef = useRef(id)
 
     // 初回取得（キャッシュ即表示 + バックグラウンド同期）
     useEffect(() => {
+        activeIdRef.current = id
         const token = ++fetchRef.current
         let cancelled = false
         const onRefresh = (freshTree: CachedTree | null) => {
@@ -30,7 +30,7 @@ export function useTree(id: string) {
         return () => { cancelled = true }
     }, [id])
 
-    // オンライン復帰時: 同期 → 再取得（IDが変わったらリダイレクト）
+    // オンライン復帰時: 同期 → 再取得（IDが変わったらURLとデータを差し替え）
     useEffect(() => {
         if (!isOnline) return
         let cancelled = false
@@ -41,21 +41,29 @@ export function useTree(id: string) {
             }
             if (cancelled) return
 
-            // 同期でIDが変わった場合（仮ID→Supabase正式ID）はリダイレクト
-            const newId = repo.getSyncedNewId(id)
+            // 同期でIDが変わった場合（仮ID→Supabase正式ID）
+            const currentId = activeIdRef.current
+            const newId = repo.getSyncedNewId(currentId)
             if (newId) {
-                router.replace(`/trees/${newId}`)
+                // ページ遷移なしでURLだけ差し替え（チラつき防止）
+                window.history.replaceState(null, '', `/trees/${newId}`)
+                activeIdRef.current = newId
+                // 新IDでデータを取得して差し替え
+                const data = await repo.getTree(newId)
+                if (!cancelled) {
+                    setTree(data)
+                }
                 return
             }
 
-            const data = await repo.getTree(id)
+            const data = await repo.getTree(currentId)
             if (!cancelled) {
                 setTree(data)
             }
         }
         sync()
         return () => { cancelled = true }
-    }, [isOnline, id, router])
+    }, [isOnline, id])
 
     const saveEdit = useCallback(async (updates: repo.TreeUpdate) => {
         const { offline } = await repo.saveEdit(id, updates)
