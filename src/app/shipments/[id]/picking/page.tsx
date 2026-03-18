@@ -89,10 +89,11 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
         processingRef.current = true
 
         try {
-            // QRからtree IDを抽出（URLの末尾がID）
-            const treeId = qrData.includes('/trees/')
-                ? qrData.split('/trees/').pop()?.split('?')[0]
-                : qrData
+            // QRからtree IDを抽出（UUID or 管理番号 or フルURL対応）
+            const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+            const trimmed = qrData.trim()
+            const uuidMatch = trimmed.match(uuidRegex)
+            const treeId = uuidMatch ? uuidMatch[0] : trimmed
 
             if (!treeId) {
                 setScanError('QRコードを読み取れませんでした')
@@ -102,7 +103,10 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
             }
 
             // この出荷に含まれている木か確認（ローカル完結）
-            const item = currentShipment.shipment_items.find(i => i.tree?.id === treeId)
+            // UUID一致 or 管理番号一致（QRラベルの形式に依存しない）
+            const item = currentShipment.shipment_items.find(i =>
+                i.tree?.id === treeId || i.tree?.management_number === treeId
+            )
             if (!item) {
                 setScanError('この木はこの出荷の対象ではありません')
                 logActivity('scan_error', treeId, {
