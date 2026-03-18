@@ -363,9 +363,9 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
         )
     }
 
-    const clientName = Array.isArray(shipment.client)
-        ? shipment.client[0]?.name
-        : shipment.client?.name || '不明'
+    const clientData = Array.isArray(shipment.client) ? shipment.client[0] : shipment.client
+    const clientName = clientData?.name || '不明'
+    const clientId = clientData?.id
     const totalItems = shipment.shipment_items.length
     const totalAmount = isEditingPrices
         ? Object.values(editPrices).reduce((sum, p) => sum + p, 0)
@@ -613,6 +613,29 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                         </div>
                     )}
                 </div>
+
+                {/* クライアントポータル */}
+                {clientId && (
+                    <div className="flex gap-3">
+                        <Link
+                            href={`/c/${clientId}/s/${shipment.id}`}
+                            target="_blank"
+                            className="flex-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 py-3 rounded-xl font-bold border border-emerald-200 transition-colors text-center"
+                        >
+                            ポータルを開く
+                        </Link>
+                        <button
+                            onClick={() => {
+                                const url = `${window.location.origin}/c/${clientId}/s/${shipment.id}`
+                                navigator.clipboard.writeText(url)
+                                alert(`ポータルURLをコピーしました:\n${url}`)
+                            }}
+                            className="px-4 py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl font-bold border border-emerald-200 transition-colors text-sm"
+                        >
+                            URL コピー
+                        </button>
+                    </div>
+                )}
 
                 {/* 出荷取消 */}
                 <button

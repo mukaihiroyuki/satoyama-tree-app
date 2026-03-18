@@ -247,66 +247,37 @@ export default function ClientsPage() {
                                             <label className="flex items-center gap-1 text-xs">
                                                 <input
                                                     type="checkbox"
-                                                    checked={c.portal_enabled}
+                                                    checked={c.portal_show_price}
                                                     onChange={async (e) => {
                                                         const supabase = createClient()
-                                                        await supabase.from('clients').update({ portal_enabled: e.target.checked }).eq('id', c.id)
+                                                        await supabase.from('clients').update({ portal_show_price: e.target.checked }).eq('id', c.id)
                                                         await fetchClients()
                                                     }}
                                                     className="rounded"
                                                 />
-                                                <span className="text-gray-600">ポータル</span>
+                                                <span className="text-gray-600">金額表示</span>
                                             </label>
-                                            {c.portal_enabled && (
-                                                <label className="flex items-center gap-1 text-xs">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={c.portal_show_price}
-                                                        onChange={async (e) => {
-                                                            const supabase = createClient()
-                                                            await supabase.from('clients').update({ portal_show_price: e.target.checked }).eq('id', c.id)
-                                                            await fetchClients()
-                                                        }}
-                                                        className="rounded"
-                                                    />
-                                                    <span className="text-gray-600">金額</span>
-                                                </label>
-                                            )}
                                         </div>
-                                        {c.portal_enabled && (
-                                            <div className="flex flex-col gap-1">
-                                                <div className="flex items-center gap-2">
-                                                    <input
-                                                        type="text"
-                                                        placeholder="アクセスコード"
-                                                        defaultValue={c.portal_password || ''}
-                                                        maxLength={6}
-                                                        className="w-24 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-green-500"
-                                                        onBlur={async (e) => {
-                                                            const val = e.target.value.trim() || null
-                                                            if (val === c.portal_password) return
-                                                            const supabase = createClient()
-                                                            await supabase.from('clients').update({ portal_password: val }).eq('id', c.id)
-                                                            await fetchClients()
-                                                        }}
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-                                                        }}
-                                                    />
-                                                    <span className="text-[10px] text-gray-400">4~6桁</span>
-                                                </div>
-                                                <button
-                                                    onClick={() => {
-                                                        const url = `${window.location.origin}/c/${c.id}`
-                                                        navigator.clipboard.writeText(url)
-                                                        alert(`ポータルURLをコピーしました:\n${url}`)
-                                                    }}
-                                                    className="text-blue-600 text-xs font-bold hover:underline text-left"
-                                                >
-                                                    URL コピー
-                                                </button>
-                                            </div>
-                                        )}
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="text"
+                                                placeholder="アクセスコード"
+                                                defaultValue={c.portal_password || ''}
+                                                maxLength={6}
+                                                className="w-24 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-green-500"
+                                                onBlur={async (e) => {
+                                                    const val = e.target.value.trim() || null
+                                                    if (val === c.portal_password) return
+                                                    const supabase = createClient()
+                                                    await supabase.from('clients').update({ portal_password: val }).eq('id', c.id)
+                                                    await fetchClients()
+                                                }}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                                                }}
+                                            />
+                                            <span className="text-[10px] text-gray-400">PIN 4~6桁</span>
+                                        </div>
                                         <div>
                                             <button
                                                 onClick={() => handleDelete(c)}
