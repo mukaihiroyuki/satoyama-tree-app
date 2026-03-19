@@ -58,6 +58,13 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
     const [editPrices, setEditPrices] = useState<Record<string, number>>({})
     const [editRate, setEditRate] = useState<string>('')
     const [savingPrices, setSavingPrices] = useState(false)
+    const [showAddItems, setShowAddItems] = useState(false)
+    const [addSearch, setAddSearch] = useState('')
+    const [addSearchResults, setAddSearchResults] = useState<{ id: string; management_number: string | null; price: number; height: number; trunk_count: number; species: { name: string } | null }[]>([])
+    const [addSelectedIds, setAddSelectedIds] = useState<Set<string>>(new Set())
+    const [addRate, setAddRate] = useState(1)
+    const [addSearching, setAddSearching] = useState(false)
+    const [addSaving, setAddSaving] = useState(false)
 
     async function fetchShipment() {
         const supabase = createClient()
@@ -147,6 +154,66 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
             }))
             .sort((a, b) => b.items.length - a.items.length) // 本数多い順
     }, [shipment])
+
+    // 明細追加: 樹木検索
+    async function handleAddSearch() {
+        if (!addSearch.trim()) return
+        setAddSearching(true)
+        try {
+            const supabase = createClient()
+            const { data } = await supabase
+                .from('trees')
+                .select('id, management_number, price, height, trunk_count, species:species_master(name)')
+                .in('status', ['in_stock', 'reserved'])
+                .ilike('management_number', `%${addSearch.trim()}%`)
+                .order('management_number')
+                .limit(50)
+            setAddSearchResults((data as unknown as typeof addSearchResults) || [])
+        } finally {
+            setAddSearching(false)
+        }
+    }
+
+    // 明細追加: 確定
+    async function handleAddItems() {
+        if (!shipment || addSelectedIds.size === 0) return
+        setAddSaving(true)
+        try {
+            const supabase = createClient()
+            const selectedTrees = addSearchResults.filter(t => addSelectedIds.has(t.id))
+
+            // 1. shipment_items追加
+            const items = selectedTrees.map(tree => ({
+                shipment_id: shipment.id,
+                tree_id: tree.id,
+                unit_price: Math.round(tree.price * addRate),
+                original_price: tree.price,
+            }))
+            const { error: itemsError } = await supabase.from('shipment_items').insert(items)
+            if (itemsError) throw itemsError
+
+            // 2. 樹木ステータスをshippedに
+            const { error: updateError } = await supabase
+                .from('trees')
+                .update({ status: 'shipped' })
+                .in('id', Array.from(addSelectedIds))
+            if (updateError) throw updateError
+
+            await logActivityBulk('ship', Array.from(addSelectedIds), { added_to_existing: shipment.id })
+
+            // リセット&リロード
+            setShowAddItems(false)
+            setAddSearch('')
+            setAddSearchResults([])
+            setAddSelectedIds(new Set())
+            fetchShipment()
+        } catch (error) {
+            console.error('明細追加エラー:', error)
+            alert('明細追加に失敗しました')
+        } finally {
+            setAddSaving(false)
+        }
+    }
 
     const toggleGroup = (speciesName: string) => {
         setExpandedGroups(prev => {
@@ -634,6 +701,123 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                         >
                             URL コピー
                         </button>
+                    </div>
+                )}
+
+                {/* 明細追加 */}
+                <button
+                    onClick={() => setShowAddItems(true)}
+                    className="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 py-3 rounded-xl font-bold border border-blue-200 transition-colors"
+                >
+                    明細を追加する
+                </button>
+
+                {/* 明細追加ダイアログ */}
+                {showAddItems && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[85vh] flex flex-col">
+                            <div className="p-6 border-b border-gray-100">
+                                <h3 className="text-lg font-bold text-gray-800">明細を追加</h3>
+                                <p className="text-sm text-gray-500 mt-1">管理番号で検索して、この出荷に樹木を追加します</p>
+                            </div>
+
+                            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+                                {/* 検索 */}
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={addSearch}
+                                        onChange={(e) => setAddSearch(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleAddSearch()}
+                                        placeholder="管理番号（例: TJ-005）"
+                                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        autoFocus
+                                    />
+                                    <button
+                                        onClick={handleAddSearch}
+                                        disabled={addSearching}
+                                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white rounded-lg font-bold text-sm transition-colors"
+                                    >
+                                        {addSearching ? '...' : '検索'}
+                                    </button>
+                                </div>
+
+                                {/* 掛け率 */}
+                                <div className="flex items-center gap-2">
+                                    <label className="text-sm font-medium text-gray-700">掛け率:</label>
+                                    <input
+                                        type="number"
+                                        value={addRate}
+                                        onChange={(e) => setAddRate(parseFloat(e.target.value) || 0)}
+                                        step="0.01"
+                                        min="0"
+                                        max="1"
+                                        className="w-24 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    />
+                                    <span className="text-xs text-gray-500">
+                                        {addRate < 1 ? `${Math.round(addRate * 100)}%` : '掛け率なし'}
+                                    </span>
+                                </div>
+
+                                {/* 検索結果 */}
+                                {addSearchResults.length > 0 && (
+                                    <div className="space-y-1">
+                                        <p className="text-xs text-gray-500 font-bold">{addSearchResults.length}件ヒット（{addSelectedIds.size}本選択中）</p>
+                                        <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-60 overflow-y-auto">
+                                            {addSearchResults.map(tree => {
+                                                const selected = addSelectedIds.has(tree.id)
+                                                const speciesName = tree.species
+                                                    ? (Array.isArray(tree.species) ? tree.species[0]?.name : tree.species.name)
+                                                    : '不明'
+                                                return (
+                                                    <div
+                                                        key={tree.id}
+                                                        onClick={() => {
+                                                            setAddSelectedIds(prev => {
+                                                                const next = new Set(prev)
+                                                                if (next.has(tree.id)) next.delete(tree.id)
+                                                                else next.add(tree.id)
+                                                                return next
+                                                            })
+                                                        }}
+                                                        className={`px-4 py-2.5 flex items-center gap-3 cursor-pointer transition-colors ${selected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                                                    >
+                                                        <span className="text-lg">{selected ? '✅' : '⬜'}</span>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="font-mono text-sm font-bold text-gray-800">{tree.management_number || '-'}</p>
+                                                            <p className="text-xs text-gray-500">{speciesName} / {tree.height}m / {tree.trunk_count}本立ち</p>
+                                                        </div>
+                                                        <span className="text-sm font-bold text-gray-600">
+                                                            &yen;{Math.round(tree.price * addRate).toLocaleString()}
+                                                        </span>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                                {addSearchResults.length === 0 && addSearch && !addSearching && (
+                                    <p className="text-sm text-gray-400 text-center py-4">該当する在庫が見つかりません</p>
+                                )}
+                            </div>
+
+                            <div className="p-6 bg-gray-50 flex gap-3 border-t border-gray-100">
+                                <button
+                                    onClick={() => { setShowAddItems(false); setAddSearch(''); setAddSearchResults([]); setAddSelectedIds(new Set()) }}
+                                    className="flex-1 px-4 py-3 border border-gray-300 rounded-xl font-bold text-gray-600 hover:bg-white transition-colors"
+                                    disabled={addSaving}
+                                >
+                                    キャンセル
+                                </button>
+                                <button
+                                    onClick={handleAddItems}
+                                    disabled={addSaving || addSelectedIds.size === 0}
+                                    className="flex-[2] bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-3 rounded-xl font-bold shadow-lg transition-all active:scale-95"
+                                >
+                                    {addSaving ? '追加中...' : `${addSelectedIds.size}本を追加する`}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
 
