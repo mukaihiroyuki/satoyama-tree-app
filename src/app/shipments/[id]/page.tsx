@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { logActivity, logActivityBulk } from '@/lib/activity-log'
 
 const PdfDownloadButton = dynamic(() => import('@/components/PdfDownloadButton'), { ssr: false })
+import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
 
 interface ShipmentDetail {
     id: string
@@ -65,6 +66,10 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
     const [addRate, setAddRate] = useState(1)
     const [addSearching, setAddSearching] = useState(false)
     const [addSaving, setAddSaving] = useState(false)
+    const [bulkSelectMode, setBulkSelectMode] = useState(false)
+    const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(new Set())
+    const [showBulkCancelDialog, setShowBulkCancelDialog] = useState(false)
+    const [bulkCancelling, setBulkCancelling] = useState(false)
 
     async function fetchShipment() {
         const supabase = createClient()
@@ -212,6 +217,58 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
             alert('明細追加に失敗しました')
         } finally {
             setAddSaving(false)
+        }
+    }
+
+    // 一括取消
+    async function handleBulkCancel() {
+        if (!shipment || bulkSelectedIds.size === 0) return
+        setBulkCancelling(true)
+        try {
+            const supabase = createClient()
+            const selectedItems = shipment.shipment_items.filter(i => bulkSelectedIds.has(i.id))
+            const treeIds = selectedItems.map(i => i.tree?.id).filter((id): id is string => !!id)
+
+            // 1. 出荷明細を削除
+            const { error: deleteError } = await supabase
+                .from('shipment_items')
+                .delete()
+                .in('id', Array.from(bulkSelectedIds))
+            if (deleteError) throw deleteError
+
+            // 2. 樹木を在庫に戻す
+            if (treeIds.length > 0) {
+                const { error: updateError } = await supabase
+                    .from('trees')
+                    .update({ status: 'in_stock' })
+                    .in('id', treeIds)
+                if (updateError) throw updateError
+            }
+
+            await logActivityBulk('cancel_ship', treeIds, { bulk: true, shipment_id: shipment.id })
+
+            // 3. 残り明細が0なら出荷レコードも削除
+            const { count } = await supabase
+                .from('shipment_items')
+                .select('id', { count: 'exact', head: true })
+                .eq('shipment_id', shipment.id)
+
+            if (count === 0) {
+                await supabase.from('shipments').delete().eq('id', shipment.id)
+                router.push('/shipments')
+                return
+            }
+
+            // リセット＆リロード
+            setBulkSelectMode(false)
+            setBulkSelectedIds(new Set())
+            setShowBulkCancelDialog(false)
+            fetchShipment()
+        } catch (error) {
+            console.error('一括取消エラー:', error)
+            alert('一括取消に失敗しました')
+        } finally {
+            setBulkCancelling(false)
         }
     }
 
@@ -832,9 +889,61 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
 
                 {/* 樹種別内訳 */}
                 <div>
-                    <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">
-                        樹種別内訳（{speciesGroups.length} 種）
-                    </h2>
+                    <div className="flex items-center justify-between mb-3">
+                        <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider">
+                            樹種別内訳（{speciesGroups.length} 種）
+                        </h2>
+                        <button
+                            onClick={() => {
+                                if (bulkSelectMode) {
+                                    setBulkSelectMode(false)
+                                    setBulkSelectedIds(new Set())
+                                } else {
+                                    setBulkSelectMode(true)
+                                }
+                            }}
+                            className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${
+                                bulkSelectMode
+                                    ? 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                                    : 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
+                            }`}
+                        >
+                            {bulkSelectMode ? '選択モード解除' : '一括取消モード'}
+                        </button>
+                    </div>
+
+                    {/* 一括取消バー */}
+                    {bulkSelectMode && (
+                        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 mb-3 flex items-center justify-between">
+                            <div>
+                                <span className="text-red-700 font-bold">{bulkSelectedIds.size}本 選択中</span>
+                                <button
+                                    onClick={() => {
+                                        const allIds = new Set(shipment.shipment_items.map(i => i.id))
+                                        setBulkSelectedIds(allIds)
+                                        // 全グループ展開
+                                        setExpandedGroups(new Set(speciesGroups.map(g => g.speciesName)))
+                                    }}
+                                    className="ml-3 text-xs text-red-500 hover:text-red-700 font-bold underline"
+                                >
+                                    全選択
+                                </button>
+                                <button
+                                    onClick={() => setBulkSelectedIds(new Set())}
+                                    className="ml-2 text-xs text-gray-500 hover:text-gray-700 font-bold underline"
+                                >
+                                    全解除
+                                </button>
+                            </div>
+                            <button
+                                onClick={() => setShowBulkCancelDialog(true)}
+                                disabled={bulkSelectedIds.size === 0}
+                                className="bg-red-600 hover:bg-red-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors"
+                            >
+                                {bulkSelectedIds.size}本を取消
+                            </button>
+                        </div>
+                    )}
                     <div className="space-y-3">
                         {speciesGroups.map((group) => {
                             const isExpanded = expandedGroups.has(group.speciesName)
@@ -873,6 +982,25 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                                             <table className="w-full text-sm">
                                                 <thead className="bg-gray-50">
                                                     <tr>
+                                                        {bulkSelectMode && (
+                                                            <th className="px-2 py-2 w-10">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={group.items.every(i => bulkSelectedIds.has(i.id))}
+                                                                    onChange={(e) => {
+                                                                        setBulkSelectedIds(prev => {
+                                                                            const next = new Set(prev)
+                                                                            group.items.forEach(i => {
+                                                                                if (e.target.checked) next.add(i.id)
+                                                                                else next.delete(i.id)
+                                                                            })
+                                                                            return next
+                                                                        })
+                                                                    }}
+                                                                    className="w-4 h-4 accent-red-600"
+                                                                />
+                                                            </th>
+                                                        )}
                                                         <th className="px-4 py-2 text-left text-xs font-bold text-gray-400">管理番号</th>
                                                         <th className="px-4 py-2 text-right text-xs font-bold text-gray-400">樹高</th>
                                                         <th className="px-4 py-2 text-right text-xs font-bold text-gray-400">本立ち</th>
@@ -882,7 +1010,25 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                                                 </thead>
                                                 <tbody className="divide-y divide-gray-50">
                                                     {group.items.map((item) => (
-                                                        <tr key={item.id} className="hover:bg-blue-50/30">
+                                                        <tr key={item.id} className={`hover:bg-blue-50/30 ${bulkSelectedIds.has(item.id) ? 'bg-red-50' : ''}`}>
+                                                            {bulkSelectMode && (
+                                                                <td className="px-2 py-2.5">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={bulkSelectedIds.has(item.id)}
+                                                                        onChange={() => {
+                                                                            setBulkSelectedIds(prev => {
+                                                                                const next = new Set(prev)
+                                                                                if (next.has(item.id)) next.delete(item.id)
+                                                                                else next.add(item.id)
+                                                                                return next
+                                                                            })
+                                                                        }}
+                                                                        className="w-4 h-4 accent-red-600"
+                                                                        onClick={(e) => e.stopPropagation()}
+                                                                    />
+                                                                </td>
+                                                            )}
                                                             <td className="px-4 py-2.5">
                                                                 {item.tree ? (
                                                                     <Link
@@ -942,6 +1088,16 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                     </div>
                 </div>
             </main>
+
+            {/* 一括取消 3重確認ダイアログ */}
+            <DeleteConfirmDialog
+                isOpen={showBulkCancelDialog}
+                onClose={() => setShowBulkCancelDialog(false)}
+                onConfirm={handleBulkCancel}
+                itemCount={bulkSelectedIds.size}
+                itemLabel="出荷明細"
+                clientName={clientName}
+            />
         </div>
     )
 }
