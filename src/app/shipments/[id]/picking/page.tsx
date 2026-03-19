@@ -77,6 +77,8 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id])
 
+    const [manualSearch, setManualSearch] = useState('')
+
     const pickedCount = shipment?.shipment_items.filter(i => i.picked_at).length || 0
     const totalCount = shipment?.shipment_items.length || 0
     const allPicked = pickedCount === totalCount && totalCount > 0
@@ -534,13 +536,33 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
                     </div>
                 )}
 
-                {/* チェックリスト */}
+                {/* 手入力ピッキング */}
                 <div className="bg-gray-800 rounded-xl overflow-hidden">
                     <div className="px-4 py-3 border-b border-gray-700">
                         <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider">チェックリスト</h2>
+                        <p className="text-xs text-gray-500 mt-1">タップでピッキング / 番号で絞り込み</p>
+                    </div>
+                    <div className="px-4 py-3 border-b border-gray-700">
+                        <input
+                            type="text"
+                            placeholder="管理番号で検索（例: 0058）"
+                            value={manualSearch}
+                            onChange={e => setManualSearch(e.target.value)}
+                            className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
                     </div>
                     <div className="divide-y divide-gray-700/50">
-                        {shipment.shipment_items.map(item => {
+                        {shipment.shipment_items
+                            .filter(item => {
+                                if (!manualSearch) return true
+                                const q = manualSearch.toLowerCase()
+                                const mn = item.tree?.management_number?.toLowerCase() || ''
+                                const sp = item.tree?.species
+                                    ? (Array.isArray(item.tree.species) ? item.tree.species[0]?.name : item.tree.species.name)?.toLowerCase() || ''
+                                    : ''
+                                return mn.includes(q) || sp.includes(q)
+                            })
+                            .map(item => {
                             const picked = !!item.picked_at
                             const speciesName = item.tree?.species
                                 ? (Array.isArray(item.tree.species) ? item.tree.species[0]?.name : item.tree.species.name)
@@ -548,7 +570,14 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
                             return (
                                 <div
                                     key={item.id}
-                                    className={`px-4 py-3 flex items-center gap-3 ${picked ? 'bg-green-900/20' : ''}`}
+                                    onClick={() => {
+                                        if (!picked && !pendingConfirm) {
+                                            setPendingConfirm(item)
+                                            playSuccess()
+                                            navigator.vibrate?.([100, 50, 100])
+                                        }
+                                    }}
+                                    className={`px-4 py-3 flex items-center gap-3 ${picked ? 'bg-green-900/20' : 'cursor-pointer active:bg-gray-700'}`}
                                 >
                                     <span className={`text-xl ${picked ? 'text-green-500' : 'text-gray-600'}`}>
                                         {picked ? '✅' : '⬜'}
