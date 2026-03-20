@@ -11,6 +11,7 @@ export type ActionType =
     | 'delete'
     | 'estimate'
     | 'scan_error'
+    | 'unbind_client'
 
 export async function logActivity(
     action: ActionType,

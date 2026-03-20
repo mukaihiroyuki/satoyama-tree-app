@@ -128,6 +128,7 @@ function TreesPage() {
     const selectedStatuses = new Set(selectedTreesFiltered.map(t => t.status))
     const hasReserved = selectedStatuses.has('reserved')
     const hasShipped = selectedStatuses.has('shipped')
+    const hasClientBound = selectedTreesFiltered.some(t => t.client_id && t.status === 'in_stock')
     const hasNoMgmtNumber = selectedTreesFiltered.some(t => !t.management_number)
     const [assigningMgmt, setAssigningMgmt] = useState(false)
 
@@ -230,6 +231,30 @@ function TreesPage() {
             return
         }
         await logActivityBulk('cancel_reserve', reservedIds)
+        setSelectedIds([])
+        refreshData()
+    }
+
+    // クライアント紐づけ解除
+    async function handleUnbindClient() {
+        const targetIds = trees
+            .filter(t => selectedIds.includes(t.id) && t.status === 'in_stock' && t.client_id)
+            .map(t => t.id)
+        if (targetIds.length === 0) return
+        if (!confirm(`${targetIds.length} 本のクライアント紐づけを解除しますか？`)) return
+
+        const supabase = createClient()
+        const { error } = await supabase
+            .from('trees')
+            .update({ client_id: null })
+            .in('id', targetIds)
+
+        if (error) {
+            console.error('紐づけ解除エラー:', error)
+            alert('紐づけ解除に失敗しました')
+            return
+        }
+        await logActivityBulk('unbind_client', targetIds)
         setSelectedIds([])
         refreshData()
     }
@@ -698,6 +723,14 @@ function TreesPage() {
                                 className="bg-orange-600 hover:bg-orange-700 px-4 sm:px-6 py-2 rounded-xl font-bold transition-all active:scale-95 whitespace-nowrap text-sm sm:text-base"
                             >
                                 予約取消
+                            </button>
+                        )}
+                        {hasClientBound && (
+                            <button
+                                onClick={handleUnbindClient}
+                                className="bg-gray-600 hover:bg-gray-700 px-4 sm:px-6 py-2 rounded-xl font-bold transition-all active:scale-95 whitespace-nowrap text-sm sm:text-base"
+                            >
+                                紐づけ解除
                             </button>
                         )}
                         {hasShipped && (
