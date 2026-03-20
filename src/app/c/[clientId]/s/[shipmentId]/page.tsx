@@ -37,6 +37,8 @@ export default function ShipmentPortalPage({ params }: { params: Promise<{ clien
     const [scanFeedback, setScanFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
     const [receiptCompleted, setReceiptCompleted] = useState<string | null>(null)
     const [completing, setCompleting] = useState(false)
+    const [portalSearch, setPortalSearch] = useState('')
+    const [tappedItem, setTappedItem] = useState<DeliveredTree | null>(null)
     const videoRef = useRef<HTMLVideoElement>(null)
     const streamRef = useRef<MediaStream | null>(null)
     const scanningRef = useRef(false)
@@ -138,16 +140,17 @@ export default function ShipmentPortalPage({ params }: { params: Promise<{ clien
         processingRef.current = true
 
         try {
-            const treeId = qrData.includes('/trees/')
-                ? qrData.split('/trees/').pop()?.split('?')[0]
-                : qrData
+            const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+            const trimmed = qrData.trim()
+            const uuidMatch = trimmed.match(uuidRegex)
+            const treeId = uuidMatch ? uuidMatch[0] : trimmed
 
             if (!treeId) {
                 setScanFeedback({ type: 'error', message: 'QRを読み取れませんでした' })
                 return
             }
 
-            const item = trees.find(t => t.tree_id === treeId)
+            const item = trees.find(t => t.tree_id === treeId || t.management_number === treeId)
             if (!item) {
                 setScanFeedback({ type: 'error', message: 'この樹木は納品対象ではありません' })
                 setTimeout(() => setScanFeedback(null), 3000)
@@ -177,6 +180,22 @@ export default function ShipmentPortalPage({ params }: { params: Promise<{ clien
             setTimeout(() => { processingRef.current = false }, 1500)
         }
     }, [trees, clientId])
+
+    // タップで受入確認
+    async function handleTapReceive(item: DeliveredTree) {
+        const supabase = createClient()
+        const { error } = await supabase.from('client_receipts').insert({
+            shipment_item_id: item.shipment_item_id,
+            tree_id: item.tree_id,
+            client_id: clientId,
+        })
+        if (error) {
+            alert('記録に失敗しました')
+            return
+        }
+        setTappedItem(null)
+        await fetchData()
+    }
 
     // カメラ
     async function startScanning() {
@@ -462,16 +481,62 @@ export default function ShipmentPortalPage({ params }: { params: Promise<{ clien
                     </button>
                 )}
 
+                {/* タップ受入確認ダイアログ */}
+                {tappedItem && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
+                            <h3 className="text-lg font-bold text-gray-800 mb-3">受入確認</h3>
+                            <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                                <p className="font-mono text-lg font-black text-gray-800">{tappedItem.management_number || '-'}</p>
+                                <p className="text-sm text-gray-500 mt-1">{tappedItem.species_name} / {tappedItem.height}m / {tappedItem.trunk_count}本立ち</p>
+                            </div>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setTappedItem(null)}
+                                    className="flex-1 py-2.5 border border-gray-300 rounded-xl font-bold text-gray-600 hover:bg-gray-50 transition-colors"
+                                >
+                                    キャンセル
+                                </button>
+                                <button
+                                    onClick={() => handleTapReceive(tappedItem)}
+                                    className="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl font-bold shadow-lg transition-all active:scale-95"
+                                >
+                                    受入OK
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* 樹木リスト */}
                 <div className="bg-white rounded-xl shadow-sm overflow-hidden">
                     <div className="px-4 py-3 border-b border-gray-100">
                         <h2 className="text-sm font-bold text-gray-500">納品リスト</h2>
+                        <p className="text-xs text-gray-400 mt-0.5">タップで受入確認 / 番号で絞り込み</p>
+                    </div>
+                    <div className="px-4 py-3 border-b border-gray-100">
+                        <input
+                            type="text"
+                            placeholder="管理番号で検索（例: 0058）"
+                            value={portalSearch}
+                            onChange={e => setPortalSearch(e.target.value)}
+                            className="w-full bg-gray-100 text-gray-800 rounded-lg px-3 py-2 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
                     </div>
                     <div className="divide-y divide-gray-50">
-                        {trees.map(t => (
+                        {trees
+                            .filter(t => {
+                                if (!portalSearch) return true
+                                const q = portalSearch.toLowerCase()
+                                return (t.management_number?.toLowerCase() || '').includes(q) || t.species_name.toLowerCase().includes(q)
+                            })
+                            .map(t => (
                             <div
                                 key={t.shipment_item_id}
-                                className={`px-4 py-3 flex items-center gap-3 ${t.received ? 'bg-green-50/50' : ''}`}
+                                onClick={() => {
+                                    if (!t.received) setTappedItem(t)
+                                }}
+                                className={`px-4 py-3 flex items-center gap-3 ${t.received ? 'bg-green-50/50' : 'cursor-pointer active:bg-gray-100'}`}
                             >
                                 <span className="text-lg">{t.received ? '✅' : '⬜'}</span>
                                 <div className="flex-1 min-w-0">
