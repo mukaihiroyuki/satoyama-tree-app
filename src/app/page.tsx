@@ -66,7 +66,7 @@ export default async function Home() {
         {/* 統計カード（タップで遷移） */}
         <div className="mb-8">
           <StatCard
-            title="総在庫数"
+            title="総登録数"
             value={stats.total}
             unit="本"
             color="blue"
