@@ -20,6 +20,7 @@ const statusLabels: Record<string, { label: string; color: string }> = {
     reserved: { label: '予約済み', color: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
     shipped: { label: '出荷済み', color: 'bg-blue-100 text-blue-800 border-blue-300' },
     dead: { label: '枯死', color: 'bg-gray-100 text-gray-800 border-gray-300' },
+    disabled: { label: '無効', color: 'bg-red-100 text-red-800 border-red-300' },
 }
 
 export default function TreeDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -355,6 +356,24 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
                     </button>
                 </div>
 
+                {/* 無効バナー */}
+                {tree.status === 'disabled' && (
+                    <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6 text-center">
+                        <p className="text-red-800 font-bold text-lg">この樹木は無効です</p>
+                        <p className="text-red-600 text-sm mt-1">登録ミス等で無効化されています</p>
+                        <button
+                            onClick={async () => {
+                                if (!confirm('この樹木を在庫に戻しますか？')) return
+                                await saveEdit({ status: 'in_stock' })
+                                await logActivity('enable', tree.id)
+                            }}
+                            className="mt-3 bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-bold transition-colors"
+                        >
+                            在庫に戻す
+                        </button>
+                    </div>
+                )}
+
                 {/* 管理番号（大きく表示） */}
                 {tree.management_number ? (
                     <div className="bg-green-50 border-2 border-green-300 rounded-xl p-6 text-center">
@@ -425,20 +444,17 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
                 {/* 操作履歴 */}
                 <ActivityLogList treeId={tree.id} />
 
-                {/* 削除ボタン（出荷済みは出荷履歴を保護するため削除不可） */}
-                {tree.status !== 'shipped' && (
+                {/* 無効化ボタン（削除の代わり。QRラベルのUUIDを保持） */}
+                {tree.status !== 'shipped' && tree.status !== 'disabled' && (
                     <button
-                        onClick={() => {
-                            if (!isOnline) {
-                                alert('削除はオンライン時のみ可能です')
-                                return
-                            }
-                            setIsDeleteDialogOpen(true)
+                        onClick={async () => {
+                            if (!confirm('この樹木を無効にしますか？一覧に表示されなくなります（復帰可能）')) return
+                            await saveEdit({ status: 'disabled' })
+                            await logActivity('disable', tree.id)
                         }}
-                        disabled={!isOnline}
-                        className="w-full bg-red-50 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed text-red-600 py-3 rounded-lg font-semibold border border-red-200"
+                        className="w-full bg-red-50 hover:bg-red-100 text-red-600 py-3 rounded-lg font-semibold border border-red-200"
                     >
-                        {isOnline ? 'この樹木を削除' : '削除はオンライン時のみ'}
+                        この樹木を無効にする
                     </button>
                 )}
             </main>

@@ -16,6 +16,7 @@ const statusLabels: Record<string, { label: string; color: string }> = {
     reserved: { label: '予約済み', color: 'bg-yellow-100 text-yellow-800' },
     shipped: { label: '出荷済み', color: 'bg-blue-100 text-blue-800' },
     dead: { label: '枯死', color: 'bg-gray-100 text-gray-800' },
+    disabled: { label: '無効', color: 'bg-red-100 text-red-800' },
 }
 
 export default function TreesPageWrapper() {
@@ -259,6 +260,29 @@ function TreesPage() {
         refreshData()
     }
 
+    // 一括無効化
+    async function handleBulkDisable() {
+        const targetIds = trees
+            .filter(t => selectedIds.includes(t.id) && (t.status === 'in_stock' || t.status === 'reserved'))
+            .map(t => t.id)
+        if (targetIds.length === 0) return
+        if (!confirm(`${targetIds.length} 本を無効にしますか？一覧に表示されなくなります（復帰可能）`)) return
+
+        const supabase = createClient()
+        const { error } = await supabase
+            .from('trees')
+            .update({ status: 'disabled' })
+            .in('id', targetIds)
+
+        if (error) {
+            alert('無効化に失敗しました')
+            return
+        }
+        await logActivityBulk('disable', targetIds)
+        setSelectedIds([])
+        refreshData()
+    }
+
     // 出荷取消
     async function handleCancelShipment() {
         const shippedIds = trees
@@ -482,6 +506,7 @@ function TreesPage() {
                                 <option value="reserved">予約済み</option>
                                 <option value="shipped">出荷済み</option>
                                 <option value="dead">枯死</option>
+                                <option value="disabled">無効</option>
                             </select>
                         </div>
 
@@ -741,6 +766,12 @@ function TreesPage() {
                                 出荷取消
                             </button>
                         )}
+                        <button
+                            onClick={handleBulkDisable}
+                            className="bg-red-500 hover:bg-red-600 px-4 sm:px-6 py-2 rounded-xl font-bold transition-all active:scale-95 whitespace-nowrap text-sm sm:text-base"
+                        >
+                            無効化
+                        </button>
                         <button
                             onClick={() => setIsDeleteDialogOpen(true)}
                             className="bg-red-800 hover:bg-red-900 px-4 sm:px-6 py-2 rounded-xl font-bold transition-all active:scale-95 whitespace-nowrap text-sm sm:text-base"

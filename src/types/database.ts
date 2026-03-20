@@ -1,7 +1,7 @@
 // Database Types for Satoyama Tree App
 // Generated from DBスキーマ設計書.md
 
-export type TreeStatus = 'in_stock' | 'reserved' | 'shipped' | 'dead'
+export type TreeStatus = 'in_stock' | 'reserved' | 'shipped' | 'dead' | 'disabled'
 
 export interface SpeciesMaster {
     id: string

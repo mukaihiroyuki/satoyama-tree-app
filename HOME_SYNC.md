@@ -4,7 +4,7 @@
 > **自宅PCで開く時の合言葉：**
 > 「`HOME_SYNC.md` を読んで現状を把握して」
 
-## 📍 現在地 (2026-03-06 更新)
+## 📍 現在地 (2026-03-17 更新)
 - **スタッフPIN認証**: 4桁PINでスタッフ識別（localStorage、電波不要）。7名登録（`src/lib/constants.ts` STAFF配列）。`useStaffPin`フック + `StaffPinGuard`ラッパー。
 - **操作ログ**: `activity_logs`テーブル。全操作（create/edit/reserve/cancel_reserve/ship/cancel_ship/delete/estimate）を記録。`logActivity()`/`logActivityBulk()`。専用ページ `/logs`。
 - **見積編集**: クライアント・掛け率一括適用・単価個別編集・明細追加削除・ステータス・担当者・日付・備考。出荷済み見積は編集不可。
@@ -56,6 +56,8 @@
 - **クライアント・出荷履歴のオフライン対応**: 現場で必要になった時に対応する。同じパターン（IndexedDBキャッシュ層追加）で実装可能
 
 ## 💬 申し送り
+2026-03-17: ラベルに樹高・株立ち情報を追加（TREE_INFOテキストオブジェクト、.lbxレイアウト5行化）。見積書PDF明細を管理番号昇順にソート。樹種セレクトで優先4種（アオダモ・モミジ・ツツジ・ナツハゼ）を上位固定表示。登録直後の「樹木が見つかりません」バグ修正（tempId→新IDマッピング+history.replaceStateでチラつき解消）。作業フロー設計セッション実施：手書きリスト廃止・ダブルチェック不要の結論に到達。現場導入は「一緒に試してみて」→作業員が自分で気づく方式で進める方針。ラベルの実機印刷テストは実施済み（樹高表示OK、株立1は非表示仕様でOK）。ビルドエラー（/treesページのプリレンダリング）は既存問題で今回の変更とは無関係、Vercelデプロイは正常。
+
 2026-03-06: スタッフPIN認証・操作ログ・見積編集・ピッキング・クライアントポータル・アクセスコード認証を一気に実装。DB変更はSupabase SQL Editorで直接実行（activity_logs, picking_status, picked_at, portal_enabled, portal_show_price, portal_password, client_receipts）。スタッフPINはuseSyncExternalStoreで実装（useStateのuseEffect内setState問題を回避）。ピッキングはBarcodeDetector+jsQRフォールバック。クライアントポータルは認証不要→PIN認証に強化。積水ハウスへの納品でセキュリティ質問に備えて対策済み（HTTPS/国内DC/アクセスコード/操作記録/データ分離）。SaaS化の種（クライアント自社在庫QR管理→従量課金）は需要が出てから着手する方針。
 
 2026-03-05: 出荷取消し・予約取消し・一括削除（3段階確認）・フィルター永続化・クライアント自動選択・価格アラートを一気に実装。DB側ではestimate_items/shipment_itemsのtree_id FKにON DELETE CASCADEを追加（Supabase SQL Editorで直接実行、マイグレーションファイルなし）。DeleteConfirmDialogは3ステップで段階的に威圧的になるカスタムモーダル。価格アラートはstep="1000"→"1"に変更しブラウザバリデーション干渉を排除、リアルタイムのオレンジ警告ボックス+submit時confirm()の二重チェック。個別削除後のナビゲーションはrouter.back()でフィルター維持。
