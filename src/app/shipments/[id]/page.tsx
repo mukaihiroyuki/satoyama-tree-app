@@ -315,6 +315,46 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
         }
     }
 
+    // 未スキャン一括手動確認
+    const [bulkPickOpen, setBulkPickOpen] = useState(false)
+    const [bulkPickReason, setBulkPickReason] = useState('')
+    const [bulkPicking, setBulkPicking] = useState(false)
+
+    async function handleBulkManualPick() {
+        if (!shipment || !bulkPickReason.trim()) return
+        setBulkPicking(true)
+        try {
+            const supabase = createClient()
+            const now = new Date().toISOString()
+            const unpicked = shipment.shipment_items.filter(i => !i.picked_at)
+
+            // 全未スキャン明細を一括更新
+            const { error } = await supabase
+                .from('shipment_items')
+                .update({ picked_at: now })
+                .in('id', unpicked.map(i => i.id))
+
+            if (error) throw error
+
+            const treeIds = unpicked.map(i => i.tree?.id).filter((id): id is string => !!id)
+            await logActivityBulk('edit', treeIds, {
+                manual_pick: true,
+                bulk: true,
+                reason: bulkPickReason.trim(),
+                shipment_id: id,
+            })
+
+            setBulkPickOpen(false)
+            setBulkPickReason('')
+            fetchShipment()
+        } catch (error) {
+            console.error('一括手動確認エラー:', error)
+            alert('一括手動確認に失敗しました')
+        } finally {
+            setBulkPicking(false)
+        }
+    }
+
     function startEditingPrices() {
         if (!shipment) return
         const prices: Record<string, number> = {}
@@ -563,6 +603,12 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                         <p className="text-xs font-bold text-red-600 mb-3">
                             ※ 手動確認は事務所で行ってください。現場での操作は禁止です。
                         </p>
+                        <button
+                            onClick={() => setBulkPickOpen(true)}
+                            className="w-full mb-3 bg-amber-600 hover:bg-amber-700 text-white py-2.5 rounded-lg font-bold text-sm transition-colors"
+                        >
+                            未スキャン {unscannedItems.length}本を一括確認
+                        </button>
                         <div className="space-y-2">
                             {unscannedItems.map(item => {
                                 const speciesName = item.tree?.species
@@ -631,6 +677,44 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                                     className="flex-1 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold text-sm transition-colors"
                                 >
                                     {manualPicking ? '処理中...' : '確認済みにする'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* 一括手動確認ダイアログ */}
+                {bulkPickOpen && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                            <h3 className="text-lg font-bold text-gray-800 mb-1">一括手動確認</h3>
+                            <p className="text-sm text-amber-700 font-bold mb-4">
+                                未スキャン {unscannedItems.length}本 を全て確認済みにします
+                            </p>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">
+                                理由 <span className="text-red-500">*</span>
+                            </label>
+                            <textarea
+                                value={bulkPickReason}
+                                onChange={(e) => setBulkPickReason(e.target.value)}
+                                placeholder="例: 現場で積込み確認済み、QRラベル不一致のため一括処理"
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 resize-none"
+                                rows={3}
+                                autoFocus
+                            />
+                            <div className="flex gap-3 mt-4">
+                                <button
+                                    onClick={() => { setBulkPickOpen(false); setBulkPickReason('') }}
+                                    className="flex-1 py-2 rounded-lg border border-gray-300 text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors"
+                                >
+                                    キャンセル
+                                </button>
+                                <button
+                                    onClick={handleBulkManualPick}
+                                    disabled={!bulkPickReason.trim() || bulkPicking}
+                                    className="flex-1 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold text-sm transition-colors"
+                                >
+                                    {bulkPicking ? '処理中...' : `${unscannedItems.length}本を確認済みにする`}
                                 </button>
                             </div>
                         </div>
