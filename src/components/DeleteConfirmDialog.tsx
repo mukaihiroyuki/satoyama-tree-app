@@ -9,18 +9,20 @@ interface DeleteConfirmDialogProps {
     itemCount: number
     itemLabel: string
     clientName: string
+    variant?: 'tree' | 'estimate'
 }
 
-const STEPS = [
+const TREE_STEPS = [
     {
         title: '削除確認',
-        getMessage: (label: string, client: string, count: number) =>
+        getMessage: (label: string, _client: string, count: number) =>
             `${label}（${count}本）を削除します。`,
         subMessage: (client: string) =>
             `クライアント: ${client}`,
         note: '関連する見積明細・出荷明細も削除されます。',
         buttonLabel: '削除する',
         buttonClass: 'bg-red-600 hover:bg-red-700',
+        countLabel: '削除本数',
     },
     {
         title: '本当に削除しますか？',
@@ -30,6 +32,7 @@ const STEPS = [
         note: null,
         buttonLabel: 'それでも削除する',
         buttonClass: 'bg-red-700 hover:bg-red-800',
+        countLabel: '削除本数',
     },
     {
         title: 'FINAL ANSWER',
@@ -39,6 +42,31 @@ const STEPS = [
         note: null,
         buttonLabel: '完全に削除する',
         buttonClass: 'bg-red-900 hover:bg-black',
+        countLabel: '削除本数',
+    },
+]
+
+const ESTIMATE_STEPS = [
+    {
+        title: '見積を削除しますか？',
+        getMessage: (label: string, _client: string, count: number) =>
+            `見積 ${label}（明細${count}件）を削除します。`,
+        subMessage: (client: string) =>
+            `クライアント: ${client}`,
+        note: '樹木データは削除されません。見積と明細のみ削除されます。',
+        buttonLabel: '見積を削除する',
+        buttonClass: 'bg-red-600 hover:bg-red-700',
+        countLabel: '明細数',
+    },
+    {
+        title: '本当に削除しますか？',
+        getMessage: (label: string, _client: string, _count: number) =>
+            `見積 ${label} を削除します。`,
+        subMessage: () => 'この操作は元に戻せません。',
+        note: null,
+        buttonLabel: 'それでも削除する',
+        buttonClass: 'bg-red-700 hover:bg-red-800',
+        countLabel: '明細数',
     },
 ]
 
@@ -49,15 +77,17 @@ export default function DeleteConfirmDialog({
     itemCount,
     itemLabel,
     clientName,
+    variant = 'tree',
 }: DeleteConfirmDialogProps) {
     const [step, setStep] = useState(0)
 
     if (!isOpen) return null
 
-    const current = STEPS[step]
+    const steps = variant === 'estimate' ? ESTIMATE_STEPS : TREE_STEPS
+    const current = steps[step]
 
     function handleNext() {
-        if (step < STEPS.length - 1) {
+        if (step < steps.length - 1) {
             setStep(step + 1)
         } else {
             setStep(0)
@@ -108,14 +138,14 @@ export default function DeleteConfirmDialog({
                             <span className={`font-bold ${step >= 2 ? 'text-red-700 text-lg' : 'text-gray-800'}`}>{clientName}</span>
                         </div>
                         <div className="flex justify-between items-center mt-2">
-                            <span className="text-sm font-bold text-gray-500">削除本数</span>
+                            <span className="text-sm font-bold text-gray-500">{current.countLabel}</span>
                             <span className={`font-black ${step >= 2 ? 'text-red-700 text-2xl' : 'text-red-600 text-xl'}`}>{itemCount} 本</span>
                         </div>
                     </div>
 
                     {/* ステップインジケーター */}
                     <div className="flex justify-center gap-2 pt-2">
-                        {STEPS.map((_, i) => (
+                        {steps.map((_, i) => (
                             <div
                                 key={i}
                                 className={`h-2 rounded-full transition-all ${

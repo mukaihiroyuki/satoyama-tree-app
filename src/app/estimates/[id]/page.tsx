@@ -813,6 +813,7 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
                 itemCount={totalItems}
                 itemLabel={estimate.estimate_number}
                 clientName={clientName}
+                variant="estimate"
             />
 
             {/* 出荷ダイアログ（見積→出荷変換用） */}
