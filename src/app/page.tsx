@@ -101,17 +101,15 @@ export default async function Home() {
               href="/shipments"
             />
           </div>
-          {stats.disabled > 0 && (
-            <div className="mt-3 pl-4">
-              <StatCard
-                title="無効（誤登録・重複等）"
-                value={stats.disabled}
-                unit="本"
-                color="red"
-                href="/trees?status=disabled"
-              />
-            </div>
-          )}
+          <div className="mt-3 pl-4">
+            <StatCard
+              title="訳アリ"
+              value={stats.disabled}
+              unit="本"
+              color="red"
+              href="/trees?status=disabled"
+            />
+          </div>
         </div>
 
         {/* スキャンエラーアラート */}
