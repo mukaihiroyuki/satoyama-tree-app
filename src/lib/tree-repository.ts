@@ -27,17 +27,27 @@ export async function getAllTrees(
     if (result.length === 0) {
         try {
             const supabase = createClient()
-            const { data, error } = await supabase
-                .from('trees')
-                .select('*, species:species_master(id, name), client:clients(id, name), shipment_items(shipments(shipped_at))')
-                .order('created_at', { ascending: false })
-
-            if (error) {
-                console.error('[getAllTrees] Supabase error:', error)
-                return result
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            let allData: any[] = []
+            let from = 0
+            const PAGE_SIZE = 1000
+            while (true) {
+                const { data: page, error: pageError } = await supabase
+                    .from('trees')
+                    .select('*, species:species_master(id, name), client:clients(id, name), shipment_items(shipments(shipped_at))')
+                    .order('created_at', { ascending: false })
+                    .range(from, from + PAGE_SIZE - 1)
+                if (pageError) {
+                    console.error('[getAllTrees] Supabase error:', pageError)
+                    return result
+                }
+                if (page) allData = allData.concat(page)
+                if (!page || page.length < PAGE_SIZE) break
+                from += PAGE_SIZE
             }
+            const data = allData
 
-            if (data && data.length > 0) {
+            if (data.length > 0) {
                 const trees = flattenShippedAt(data)
                 // キャッシュ保存（失敗してもデータは返す）
                 try {
@@ -66,16 +76,26 @@ export async function getAllTrees(
 async function refreshTreesFromSupabase(onRefresh: (trees: CachedTree[]) => void) {
     try {
         const supabase = createClient()
-        const { data, error } = await supabase
-            .from('trees')
-            .select('*, species:species_master(id, name), client:clients(id, name), shipment_items(shipments(shipped_at))')
-            .order('created_at', { ascending: false })
-
-        if (error) {
-            console.error('[refreshTrees] Supabase error:', error)
-            return
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let allData: any[] = []
+        let from = 0
+        const PAGE_SIZE = 1000
+        while (true) {
+            const { data: page, error: pageError } = await supabase
+                .from('trees')
+                .select('*, species:species_master(id, name), client:clients(id, name), shipment_items(shipments(shipped_at))')
+                .order('created_at', { ascending: false })
+                .range(from, from + PAGE_SIZE - 1)
+            if (pageError) {
+                console.error('[refreshTrees] Supabase error:', pageError)
+                return
+            }
+            if (page) allData = allData.concat(page)
+            if (!page || page.length < PAGE_SIZE) break
+            from += PAGE_SIZE
         }
-        if (!data) return
+        const data = allData
+        if (data.length === 0) return
 
         const trees = flattenShippedAt(data)
         try {

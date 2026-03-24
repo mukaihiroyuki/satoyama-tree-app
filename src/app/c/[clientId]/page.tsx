@@ -67,12 +67,21 @@ export default function ClientPortalPage({ params }: { params: Promise<{ clientI
             .eq('client_id', clientId)
             .order('shipped_at', { ascending: false })
 
-        // 受入チェック済み件数を取得
-        const { data: receipts } = await supabase
-            .from('client_receipts')
-            .select('shipment_item_id')
-            .eq('client_id', clientId)
-        const receivedSet = new Set((receipts || []).map(r => r.shipment_item_id))
+        // 受入チェック済み件数を取得（1000行制限回避）
+        let allReceipts: { shipment_item_id: string }[] = []
+        let rFrom = 0
+        const R_PAGE_SIZE = 1000
+        while (true) {
+            const { data: rPage } = await supabase
+                .from('client_receipts')
+                .select('shipment_item_id')
+                .eq('client_id', clientId)
+                .range(rFrom, rFrom + R_PAGE_SIZE - 1)
+            if (rPage) allReceipts = allReceipts.concat(rPage)
+            if (!rPage || rPage.length < R_PAGE_SIZE) break
+            rFrom += R_PAGE_SIZE
+        }
+        const receivedSet = new Set(allReceipts.map(r => r.shipment_item_id))
 
         const summaries: ShipmentSummary[] = (shipmentsData || []).map(s => {
             const items = s.shipment_items || []

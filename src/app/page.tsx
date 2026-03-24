@@ -3,27 +3,30 @@ import Link from 'next/link'
 import OfflineCacheWarmer from '@/components/OfflineCacheWarmer'
 import ScanErrorAlerts from '@/components/ScanErrorAlerts'
 
-// 樹木の統計情報を取得
+export const dynamic = 'force-dynamic'
+
+// 樹木の統計情報を取得（DBサーバー側でCOUNT）
 async function getTreeStats() {
   const supabase = await createClient()
 
-  const { data: trees, error } = await supabase
-    .from('trees')
-    .select('status')
+  const [totalRes, inStockRes, reservedRes, shippedRes] = await Promise.all([
+    supabase.from('trees').select('*', { count: 'exact', head: true }),
+    supabase.from('trees').select('*', { count: 'exact', head: true }).eq('status', 'in_stock'),
+    supabase.from('trees').select('*', { count: 'exact', head: true }).eq('status', 'reserved'),
+    supabase.from('trees').select('*', { count: 'exact', head: true }).eq('status', 'shipped'),
+  ])
 
-  if (error) {
-    console.error('Error fetching trees:', error)
+  if (totalRes.error) {
+    console.error('Error fetching tree stats:', totalRes.error)
     return { total: 0, in_stock: 0, reserved: 0, shipped: 0 }
   }
 
-  const stats = {
-    total: trees?.length || 0,
-    in_stock: trees?.filter(t => t.status === 'in_stock').length || 0,
-    reserved: trees?.filter(t => t.status === 'reserved').length || 0,
-    shipped: trees?.filter(t => t.status === 'shipped').length || 0,
+  return {
+    total: totalRes.count || 0,
+    in_stock: inStockRes.count || 0,
+    reserved: reservedRes.count || 0,
+    shipped: shippedRes.count || 0,
   }
-
-  return stats
 }
 
 // 樹種一覧を取得

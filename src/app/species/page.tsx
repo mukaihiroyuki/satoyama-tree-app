@@ -45,13 +45,22 @@ export default function SpeciesPage() {
                 .order('name_kana')
             setSpecies(data || [])
 
-            // 各樹種の使用本数を取得
-            const { data: trees } = await supabase
-                .from('trees')
-                .select('species_id, management_number')
+            // 各樹種の使用本数を取得（1000行制限回避のためページング）
+            let allTrees: { species_id: string; management_number: string | null }[] = []
+            let from = 0
+            const PAGE_SIZE = 1000
+            while (true) {
+                const { data: page } = await supabase
+                    .from('trees')
+                    .select('species_id, management_number')
+                    .range(from, from + PAGE_SIZE - 1)
+                if (page) allTrees = allTrees.concat(page)
+                if (!page || page.length < PAGE_SIZE) break
+                from += PAGE_SIZE
+            }
             const counts: Record<string, number> = {}
             const managed: Record<string, number> = {}
-            trees?.forEach(t => {
+            allTrees.forEach(t => {
                 counts[t.species_id] = (counts[t.species_id] || 0) + 1
                 if (t.management_number) {
                     managed[t.species_id] = (managed[t.species_id] || 0) + 1
