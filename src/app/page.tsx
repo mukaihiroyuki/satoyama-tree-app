@@ -9,16 +9,17 @@ export const dynamic = 'force-dynamic'
 async function getTreeStats() {
   const supabase = await createClient()
 
-  const [totalRes, inStockRes, reservedRes, shippedRes] = await Promise.all([
+  const [totalRes, inStockRes, reservedRes, shippedRes, disabledRes] = await Promise.all([
     supabase.from('trees').select('*', { count: 'exact', head: true }),
     supabase.from('trees').select('*', { count: 'exact', head: true }).eq('status', 'in_stock'),
     supabase.from('trees').select('*', { count: 'exact', head: true }).eq('status', 'reserved'),
     supabase.from('trees').select('*', { count: 'exact', head: true }).eq('status', 'shipped'),
+    supabase.from('trees').select('*', { count: 'exact', head: true }).eq('status', 'disabled'),
   ])
 
   if (totalRes.error) {
     console.error('Error fetching tree stats:', totalRes.error)
-    return { total: 0, in_stock: 0, reserved: 0, shipped: 0 }
+    return { total: 0, in_stock: 0, reserved: 0, shipped: 0, disabled: 0 }
   }
 
   return {
@@ -26,6 +27,7 @@ async function getTreeStats() {
     in_stock: inStockRes.count || 0,
     reserved: reservedRes.count || 0,
     shipped: shippedRes.count || 0,
+    disabled: disabledRes.count || 0,
   }
 }
 
@@ -99,6 +101,17 @@ export default async function Home() {
               href="/shipments"
             />
           </div>
+          {stats.disabled > 0 && (
+            <div className="mt-3 pl-4">
+              <StatCard
+                title="無効（誤登録・重複等）"
+                value={stats.disabled}
+                unit="本"
+                color="red"
+                href="/trees?status=disabled"
+              />
+            </div>
+          )}
         </div>
 
         {/* スキャンエラーアラート */}
@@ -216,7 +229,7 @@ function StatCard({
   title: string
   value: number | string
   unit: string
-  color: 'blue' | 'green' | 'yellow' | 'purple'
+  color: 'blue' | 'green' | 'yellow' | 'purple' | 'red'
   href: string
   large?: boolean
 }) {
@@ -225,6 +238,7 @@ function StatCard({
     green: 'bg-green-50 border-green-200 text-green-800 hover:bg-green-100',
     yellow: 'bg-yellow-50 border-yellow-200 text-yellow-800 hover:bg-yellow-100',
     purple: 'bg-purple-50 border-purple-200 text-purple-800 hover:bg-purple-100',
+    red: 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100',
   }
 
   return (
