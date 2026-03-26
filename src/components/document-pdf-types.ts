@@ -19,4 +19,6 @@ export interface DocumentPdfProps {
     lines: SpeciesLine[];
     notes?: string | null;
     assignee?: string | null;
+    hidePrices?: boolean;
+    customTotal?: number | null;
 }

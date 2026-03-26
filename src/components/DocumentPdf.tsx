@@ -275,10 +275,14 @@ export default function DocumentPdf({
     lines,
     notes,
     assignee,
+    hidePrices,
+    customTotal,
 }: DocumentPdfProps) {
-    const subtotal = lines.reduce((sum, l) => sum + l.unitPrice, 0);
-    const tax = Math.floor(subtotal * 0.1);
-    const total = subtotal + tax;
+    const calcSubtotal = lines.reduce((sum, l) => sum + l.unitPrice, 0);
+    const hasCustomTotal = customTotal != null && customTotal > 0;
+    const total = hasCustomTotal ? customTotal : calcSubtotal + Math.floor(calcSubtotal * 0.1);
+    const subtotal = hasCustomTotal ? Math.floor(total / 1.1) : calcSubtotal;
+    const tax = hasCustomTotal ? total - subtotal : Math.floor(calcSubtotal * 0.1);
 
     // 樹種別にグループ化（順序を保持）
     const speciesGroups: { speciesName: string; items: typeof lines }[] = [];
@@ -384,8 +388,8 @@ export default function DocumentPdf({
                                     <Text style={[styles.headerText, styles.colHeight]}>樹高</Text>
                                     <Text style={[styles.headerText, styles.colTrunk]}>株立</Text>
                                     <Text style={[styles.headerText, styles.colManagement]}>管理番号</Text>
-                                    <Text style={[styles.headerText, styles.colOriginalPrice]}>定価</Text>
-                                    <Text style={[styles.headerText, styles.colUnitPrice]}>単価</Text>
+                                    {!hidePrices && <Text style={[styles.headerText, styles.colOriginalPrice]}>定価</Text>}
+                                    {!hidePrices && <Text style={[styles.headerText, styles.colUnitPrice]}>単価</Text>}
                                 </View>
                                 {/* 個別行 */}
                                 {group.items.map((line, idx) => {
@@ -410,7 +414,7 @@ export default function DocumentPdf({
                                             <Text style={[styles.cellText, styles.colManagement, { fontSize: 7 }]}>
                                                 {line.managementNumber}
                                             </Text>
-                                            <Text
+                                            {!hidePrices && <Text
                                                 style={[
                                                     styles.cellText,
                                                     styles.colOriginalPrice,
@@ -418,8 +422,8 @@ export default function DocumentPdf({
                                                 ]}
                                             >
                                                 {line.originalPrice != null ? formatCurrency(line.originalPrice) : ''}
-                                            </Text>
-                                            <Text
+                                            </Text>}
+                                            {!hidePrices && <Text
                                                 style={[
                                                     styles.cellText,
                                                     styles.colUnitPrice,
@@ -427,12 +431,12 @@ export default function DocumentPdf({
                                                 ]}
                                             >
                                                 {formatCurrency(line.unitPrice)}
-                                            </Text>
+                                            </Text>}
                                         </View>
                                     );
                                 })}
                                 {/* セクション小計 */}
-                                <View style={styles.sectionSubtotal}>
+                                {!hidePrices && <View style={styles.sectionSubtotal}>
                                     <Text style={styles.sectionSubtotalLabel}>
                                         {group.speciesName} 小計（{group.items.length} 本）
                                     </Text>
@@ -442,14 +446,14 @@ export default function DocumentPdf({
                                     <Text style={styles.sectionSubtotalValue}>
                                         {formatCurrency(groupSubtotal)}
                                     </Text>
-                                </View>
+                                </View>}
                             </View>
                         );
                     })}
                 </View>
 
                 {/* 合計セクション */}
-                <View style={styles.totalSection}>
+                {!hidePrices && <View style={styles.totalSection}>
                     <View style={styles.totalRow}>
                         <Text style={styles.totalLabel}>小計</Text>
                         <Text style={styles.totalValue}>
@@ -482,7 +486,7 @@ export default function DocumentPdf({
                             {formatCurrency(total)}
                         </Text>
                     </View>
-                </View>
+                </View>}
 
                 {/* 備考 */}
                 {notes && (

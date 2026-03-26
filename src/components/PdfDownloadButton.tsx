@@ -242,6 +242,10 @@ function csvEscape(value: string): string {
 
 export default function PdfDownloadButton({ type, estimateId, shipmentId, label }: PdfDownloadButtonProps) {
     const [busy, setBusy] = useState<'download' | 'preview' | 'csv' | null>(null)
+    const [hidePrices, setHidePrices] = useState(false)
+    const [customTotalInput, setCustomTotalInput] = useState('')
+
+    const customTotal = hidePrices && customTotalInput ? parseInt(customTotalInput) || null : null
 
     async function generateBlob(): Promise<{ blob: Blob; documentNumber: string }> {
         const data = await fetchDocumentData(estimateId, shipmentId)
@@ -259,6 +263,8 @@ export default function PdfDownloadButton({ type, estimateId, shipmentId, label 
                 lines={data.lines}
                 notes={data.notes}
                 assignee={data.assignee}
+                hidePrices={hidePrices}
+                customTotal={customTotal}
             />
         ).toBlob()
 
@@ -334,28 +340,57 @@ export default function PdfDownloadButton({ type, estimateId, shipmentId, label 
     }
 
     return (
-        <div className="flex gap-2">
-            <button
-                onClick={handlePreview}
-                disabled={busy !== null}
-                className={`px-4 py-3 rounded-xl font-bold border-2 transition-all active:scale-95 disabled:opacity-50 ${previewColorClasses[type]}`}
-            >
-                {busy === 'preview' ? '生成中...' : 'プレビュー'}
-            </button>
-            <button
-                onClick={handleDownload}
-                disabled={busy !== null}
-                className={`text-white px-6 py-3 rounded-xl font-bold shadow-lg transition-all active:scale-95 disabled:opacity-50 ${colorClasses[type]}`}
-            >
-                {busy === 'download' ? '生成中...' : label}
-            </button>
-            <button
-                onClick={handleCsvDownload}
-                disabled={busy !== null}
-                className="px-4 py-3 rounded-xl font-bold border-2 border-gray-300 text-gray-700 hover:bg-gray-50 transition-all active:scale-95 disabled:opacity-50"
-            >
-                {busy === 'csv' ? '生成中...' : 'CSV'}
-            </button>
+        <div className="space-y-2">
+            <div className="flex items-center gap-3">
+                <label className="flex items-center gap-1.5 text-sm cursor-pointer select-none">
+                    <input
+                        type="checkbox"
+                        checked={hidePrices}
+                        onChange={(e) => {
+                            setHidePrices(e.target.checked)
+                            if (!e.target.checked) setCustomTotalInput('')
+                        }}
+                        className="w-4 h-4 rounded"
+                    />
+                    <span className="font-medium text-gray-700">単価非表示</span>
+                </label>
+                {hidePrices && (
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-sm text-gray-500">合計(税込):</span>
+                        <input
+                            type="number"
+                            step="1"
+                            value={customTotalInput}
+                            onChange={(e) => setCustomTotalInput(e.target.value)}
+                            placeholder="自動計算"
+                            className="w-36 border border-gray-300 rounded-lg px-2 py-1 text-sm"
+                        />
+                    </div>
+                )}
+            </div>
+            <div className="flex gap-2">
+                <button
+                    onClick={handlePreview}
+                    disabled={busy !== null}
+                    className={`px-4 py-3 rounded-xl font-bold border-2 transition-all active:scale-95 disabled:opacity-50 ${previewColorClasses[type]}`}
+                >
+                    {busy === 'preview' ? '生成中...' : 'プレビュー'}
+                </button>
+                <button
+                    onClick={handleDownload}
+                    disabled={busy !== null}
+                    className={`text-white px-6 py-3 rounded-xl font-bold shadow-lg transition-all active:scale-95 disabled:opacity-50 ${colorClasses[type]}`}
+                >
+                    {busy === 'download' ? '生成中...' : label}
+                </button>
+                <button
+                    onClick={handleCsvDownload}
+                    disabled={busy !== null}
+                    className="px-4 py-3 rounded-xl font-bold border-2 border-gray-300 text-gray-700 hover:bg-gray-50 transition-all active:scale-95 disabled:opacity-50"
+                >
+                    {busy === 'csv' ? '生成中...' : 'CSV'}
+                </button>
+            </div>
         </div>
     )
 }
