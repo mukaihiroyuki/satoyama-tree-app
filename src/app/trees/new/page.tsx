@@ -34,9 +34,15 @@ export default function NewTreePage() {
     const selectedSpecies_ = species.find(s => s.id === formData.species_id)
 
     // 樹種一覧を取得（オフライン時はIndexedDBキャッシュから）
+    // onRefreshを渡してバックグラウンドでSupabaseから最新データを反映
+    const toSpeciesOptions = (data: { id: string; name: string; code: string | null }[]) =>
+        data.map(s => ({ id: s.id, name: s.name, code: s.code }))
+
     useEffect(() => {
-        getAllSpecies().then(data => {
-            setSpecies(data.map(s => ({ id: s.id, name: s.name, code: s.code })))
+        getAllSpecies((refreshed) => {
+            setSpecies(toSpeciesOptions(refreshed))
+        }).then(data => {
+            setSpecies(toSpeciesOptions(data))
         }).catch(err => {
             console.error('Error fetching species:', err)
         })

@@ -57,9 +57,12 @@ export function useTrees() {
                     const onRefresh = (freshTrees: CachedTree[]) => {
                         if (!cancelled) setTrees(freshTrees)
                     }
+                    const onSpeciesRefresh2 = (freshSpecies: CachedSpecies[]) => {
+                        if (!cancelled) setSpecies(freshSpecies)
+                    }
                     const [treesData, speciesData, newCount] = await Promise.all([
                         repo.getAllTrees(onRefresh),
-                        repo.getAllSpecies(),
+                        repo.getAllSpecies(onSpeciesRefresh2),
                         repo.getPendingEditCount(),
                     ])
                     if (!cancelled) {
@@ -87,9 +90,12 @@ export function useTrees() {
         const onRefresh = (freshTrees: CachedTree[]) => {
             setTrees(freshTrees)
         }
+        const onSpeciesRefresh3 = (freshSpecies: CachedSpecies[]) => {
+            setSpecies(freshSpecies)
+        }
         const [treesData, speciesData, count] = await Promise.all([
             repo.getAllTrees(onRefresh),
-            repo.getAllSpecies(),
+            repo.getAllSpecies(onSpeciesRefresh3),
             repo.getPendingEditCount(),
         ])
         setTrees(treesData)
