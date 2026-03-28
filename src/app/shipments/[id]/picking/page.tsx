@@ -178,18 +178,20 @@ export default function PickingPage({ params }: { params: Promise<{ id: string }
             .from('shipment_items')
             .update({ picked_at: now })
             .eq('id', item.id)
-            .then(({ error }) => {
-                if (error) console.error('[picking] picked_at update failed:', error)
-            })
+            .then(
+                ({ error }) => { if (error) console.error('[picking] picked_at update failed:', error) },
+                (err) => { console.error('[picking] picked_at update network error:', err) }
+            )
 
         if (shipment.picking_status === 'pending') {
             supabase
                 .from('shipments')
                 .update({ picking_status: 'in_progress' })
                 .eq('id', shipment.id)
-                .then(({ error }) => {
-                    if (error) console.error('[picking] status update failed:', error)
-                })
+                .then(
+                    ({ error }) => { if (error) console.error('[picking] status update failed:', error) },
+                    (err) => { console.error('[picking] status update network error:', err) }
+                )
         }
     }
 

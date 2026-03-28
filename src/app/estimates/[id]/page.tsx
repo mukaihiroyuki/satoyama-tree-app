@@ -200,9 +200,10 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
 
         // クライアント一覧を取得
         const supabase = createClient()
-        supabase.from('clients').select('id, name, default_rate').order('name').then(({ data }) => {
-            setClients(data || [])
-        })
+        supabase.from('clients').select('id, name, default_rate').order('name').then(
+            ({ data }) => { setClients(data || []) },
+            (err) => { console.error('[estimates] クライアント一覧の取得に失敗:', err) }
+        )
     }
 
     // 掛け率を変更して全明細に一括適用
