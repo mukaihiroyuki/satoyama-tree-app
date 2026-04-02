@@ -118,6 +118,13 @@ export default async function Home() {
         {/* 現場メインアクション */}
         <div className="grid grid-cols-2 gap-4 mb-4">
           <Link
+            href="/reservation-scan"
+            className="flex flex-col items-center justify-center gap-1 bg-yellow-500 hover:bg-yellow-600 text-white px-6 py-4 rounded-xl font-bold text-lg shadow-lg transition-all active:scale-95"
+          >
+            <span>📋 予約スキャン</span>
+            <span className="text-xs font-normal opacity-80">QRまたは番号で予約登録</span>
+          </Link>
+          <Link
             href="/shipments"
             className="flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-6 py-4 rounded-xl font-bold text-lg shadow-lg transition-all active:scale-95"
           >
