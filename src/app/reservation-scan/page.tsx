@@ -405,11 +405,15 @@ export default function ReservationScanPage() {
 
         try {
             const supabase = createClient()
+            // 数字のみ入力 → 末尾一致で検索（現場で「003」のように入力するケースが多い）
+            const isNumberOnly = /^\d+$/.test(query)
+            const pattern = isNumberOnly ? `%-${query}` : `%${query}%`
             const { data: trees, error } = await supabase
                 .from('trees')
                 .select('id, management_number, height, trunk_count, price, status, client_id, species:species_master(name)')
-                .ilike('management_number', `%${query}%`)
-                .limit(10)
+                .ilike('management_number', pattern)
+                .order('management_number')
+                .limit(20)
 
             if (error || !trees?.length) {
                 // オフラインフォールバック
