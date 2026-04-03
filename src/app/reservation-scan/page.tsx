@@ -106,11 +106,12 @@ export default function ReservationScanPage() {
     useEffect(() => {
         async function init() {
             // セッション復帰チェック
+            let savedSession: ReservationScanSession | null = null
             try {
                 const saved = localStorage.getItem(SESSION_KEY)
                 if (saved) {
-                    const session = JSON.parse(saved) as ReservationScanSession
-                    setExistingSession(session)
+                    savedSession = JSON.parse(saved) as ReservationScanSession
+                    setExistingSession(savedSession)
                 }
             } catch { /* ignore */ }
 
@@ -119,9 +120,10 @@ export default function ReservationScanPage() {
                 const supabase = createClient()
                 const { data } = await supabase.from('clients').select('id, name').order('name')
                 setClients(data || [])
-                if (data && data.length > 0) {
-                    setSelectedClientId(data[0].id)
-                    setSelectedClientName(data[0].name)
+                // 既存セッションがあればそのクライアントを選択、なければ未選択のまま（強制選択させる）
+                if (savedSession) {
+                    setSelectedClientId(savedSession.clientId)
+                    setSelectedClientName(savedSession.clientName)
                 }
             } catch {
                 setScanError('クライアント情報を取得できませんでした')
