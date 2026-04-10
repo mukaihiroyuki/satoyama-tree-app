@@ -71,6 +71,17 @@ export default function ReservationDialog({ isOpen, onClose, selectedIds, select
             return
         }
 
+        // 備考欄に入力がある場合、上書き警告
+        if (notes.trim()) {
+            const confirmed = confirm(
+                `⚠️ 備考欄に入力があります。\n\n` +
+                `選択した ${selectedIds.length} 本すべての備考が「${notes.trim()}」に上書きされます。\n` +
+                `（既存の備考は消えます）\n\n` +
+                `本当によろしいですか？`
+            )
+            if (!confirmed) return
+        }
+
         setLoading(true)
         const supabase = createClient()
 
@@ -175,6 +186,7 @@ export default function ReservationDialog({ isOpen, onClose, selectedIds, select
                     {/* 備考 */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">備考 (任意)</label>
+                        <p className="text-xs text-orange-600 mb-1">⚠️ 入力すると選択した全樹木の備考が上書きされます</p>
                         <textarea
                             value={notes}
                             onChange={(e) => setNotes(e.target.value)}
