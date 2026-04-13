@@ -39,12 +39,13 @@ export default function ActivityLogList({ treeId }: { treeId: string }) {
     useEffect(() => {
         async function fetchLogs() {
             const supabase = createClient()
-            const { data } = await supabase
+            const { data, error } = await supabase
                 .from('activity_logs')
                 .select('id, action, details, actor, created_at')
                 .eq('tree_id', treeId)
                 .order('created_at', { ascending: false })
                 .limit(20)
+            if (error) console.error('activity logs fetch error:', error)
             setLogs(data || [])
             setLoading(false)
         }

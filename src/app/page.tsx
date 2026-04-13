@@ -17,8 +17,9 @@ async function getTreeStats() {
     supabase.from('trees').select('*', { count: 'exact', head: true }).eq('status', 'disabled'),
   ])
 
-  if (totalRes.error) {
-    console.error('Error fetching tree stats:', totalRes.error)
+  const firstError = totalRes.error ?? inStockRes.error ?? reservedRes.error ?? shippedRes.error ?? disabledRes.error
+  if (firstError) {
+    console.error('Error fetching tree stats:', firstError)
     return { total: 0, in_stock: 0, reserved: 0, shipped: 0, disabled: 0 }
   }
 

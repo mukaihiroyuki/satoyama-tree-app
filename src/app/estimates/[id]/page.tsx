@@ -243,12 +243,13 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
         if (!searchQuery.trim()) return
         setSearching(true)
         const supabase = createClient()
-        const { data } = await supabase
+        const { data, error } = await supabase
             .from('trees')
             .select('id, management_number, price, species:species_master(name)')
             .or(`management_number.ilike.%${searchQuery}%`)
             .eq('status', 'in_stock')
             .limit(10)
+        if (error) console.error('tree search error:', error)
 
         const results = (data || []).map(t => ({
             id: t.id,
@@ -343,11 +344,12 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
         const supabase = createClient()
 
         // 出荷が紐づいているか確認
-        const { data: shipments } = await supabase
+        const { data: shipments, error: shipmentsError } = await supabase
             .from('shipments')
             .select('id')
             .eq('estimate_id', estimate.id)
             .limit(1)
+        if (shipmentsError) console.error('estimate delete check error:', shipmentsError)
 
         if (shipments && shipments.length > 0) {
             alert('この見積には出荷が紐づいているため削除できません。')

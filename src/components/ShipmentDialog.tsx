@@ -35,7 +35,8 @@ export default function ShipmentDialog({ isOpen, onClose, selectedIds, selectedT
     useEffect(() => {
         async function fetchClients() {
             const supabase = createClient()
-            const { data } = await supabase.from('clients').select('id, name, default_rate').order('name')
+            const { data, error } = await supabase.from('clients').select('id, name, default_rate').order('name')
+            if (error) console.error('ShipmentDialog clients fetch error:', error)
             setClients(data || [])
             if (defaultClientId) {
                 setSelectedClientId(defaultClientId)

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -118,7 +118,8 @@ export default function ReservationScanPage() {
             // クライアント取得
             try {
                 const supabase = createClient()
-                const { data } = await supabase.from('clients').select('id, name').order('name')
+                const { data, error } = await supabase.from('clients').select('id, name').order('name')
+                if (error) console.error('reservation-scan clients fetch error:', error)
                 setClients(data || [])
                 // 既存セッションがあればそのクライアントを選択、なければ未選択のまま（強制選択させる）
                 if (savedSession) {

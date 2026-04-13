@@ -31,7 +31,8 @@ export default function ReservationDialog({ isOpen, onClose, selectedIds, select
     useEffect(() => {
         async function fetchClients() {
             const supabase = createClient()
-            const { data } = await supabase.from('clients').select('id, name').order('name')
+            const { data, error } = await supabase.from('clients').select('id, name').order('name')
+            if (error) console.error('ReservationDialog clients fetch error:', error)
             setClients(data || [])
             if (defaultClientId) {
                 setSelectedClientId(defaultClientId)

@@ -30,14 +30,16 @@ export default function ClientsPage() {
 
     const fetchClients = async () => {
         const supabase = createClient()
-        const { data } = await supabase.from('clients').select('*').order('name')
+        const { data, error } = await supabase.from('clients').select('*').order('name')
+        if (error) { console.error('clients fetch error:', error); return }
         setClients(data || [])
     }
 
     useEffect(() => {
         const load = async () => {
             const supabase = createClient()
-            const { data } = await supabase.from('clients').select('*').order('name')
+            const { data, error } = await supabase.from('clients').select('*').order('name')
+            if (error) console.error('clients load error:', error)
             setClients(data || [])
             setLoading(false)
         }
@@ -250,7 +252,8 @@ export default function ClientsPage() {
                                                     checked={c.portal_show_price}
                                                     onChange={async (e) => {
                                                         const supabase = createClient()
-                                                        await supabase.from('clients').update({ portal_show_price: e.target.checked }).eq('id', c.id)
+                                                        const { error } = await supabase.from('clients').update({ portal_show_price: e.target.checked }).eq('id', c.id)
+                                                        if (error) { console.error('portal_show_price update error:', error); return }
                                                         await fetchClients()
                                                     }}
                                                     className="rounded"
@@ -269,7 +272,8 @@ export default function ClientsPage() {
                                                     const val = e.target.value.trim() || null
                                                     if (val === c.portal_password) return
                                                     const supabase = createClient()
-                                                    await supabase.from('clients').update({ portal_password: val }).eq('id', c.id)
+                                                    const { error } = await supabase.from('clients').update({ portal_password: val }).eq('id', c.id)
+                                                    if (error) { console.error('portal_password update error:', error); return }
                                                     await fetchClients()
                                                 }}
                                                 onKeyDown={(e) => {

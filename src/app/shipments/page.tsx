@@ -32,7 +32,7 @@ export default function ShipmentsPage() {
     useEffect(() => {
         const fetchShipments = async () => {
             const supabase = createClient()
-            const { data } = await supabase
+            const { data, error } = await supabase
                 .from('shipments')
                 .select(`
                     id,
@@ -46,6 +46,7 @@ export default function ShipmentsPage() {
                 .order('shipped_at', { ascending: false })
                 .order('created_at', { ascending: false })
 
+            if (error) console.error('shipments fetch error:', error)
             setShipments(data || [])
             setLoading(false)
         }

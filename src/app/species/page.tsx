@@ -29,20 +29,22 @@ export default function SpeciesPage() {
 
     const fetchSpecies = async () => {
         const supabase = createClient()
-        const { data } = await supabase
+        const { data, error } = await supabase
             .from('species_master')
             .select('*')
             .order('name_kana')
+        if (error) { console.error('species fetch error:', error); return }
         setSpecies(data || [])
     }
 
     useEffect(() => {
         const load = async () => {
             const supabase = createClient()
-            const { data } = await supabase
+            const { data, error } = await supabase
                 .from('species_master')
                 .select('*')
                 .order('name_kana')
+            if (error) console.error('species load error:', error)
             setSpecies(data || [])
 
             // 各樹種の使用本数を取得（1000行制限回避のためページング）

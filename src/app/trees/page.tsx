@@ -317,7 +317,8 @@ function TreesPage() {
                         .select('id', { count: 'exact', head: true })
                         .eq('shipment_id', shipmentId)
                     if (count === 0) {
-                        await supabase.from('shipments').delete().eq('id', shipmentId)
+                        const { error: delErr } = await supabase.from('shipments').delete().eq('id', shipmentId)
+                        if (delErr) console.error('shipment delete error:', delErr)
                     }
                 }
             }

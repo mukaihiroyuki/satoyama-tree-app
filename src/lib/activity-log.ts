@@ -53,7 +53,8 @@ export async function logActivityBulk(
             actor,
         }))
 
-        await supabase.from('activity_logs').insert(rows)
+        const { error } = await supabase.from('activity_logs').insert(rows)
+        if (error) throw error
     } catch (e) {
         console.error('activity log error:', e)
     }

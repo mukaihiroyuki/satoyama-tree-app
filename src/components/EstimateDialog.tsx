@@ -34,7 +34,8 @@ export default function EstimateDialog({ isOpen, onClose, selectedTrees, onSucce
     useEffect(() => {
         async function fetchClients() {
             const supabase = createClient()
-            const { data } = await supabase.from('clients').select('id, name, default_rate').order('name')
+            const { data, error } = await supabase.from('clients').select('id, name, default_rate').order('name')
+            if (error) console.error('EstimateDialog clients fetch error:', error)
             setClients(data || [])
             if (defaultClientId) {
                 setSelectedClientId(defaultClientId)
@@ -73,11 +74,12 @@ export default function EstimateDialog({ isOpen, onClose, selectedTrees, onSucce
     }
 
     async function generateEstimateNumber(supabase: ReturnType<typeof createClient>): Promise<string> {
-        const { data } = await supabase
+        const { data, error } = await supabase
             .from('estimates')
             .select('estimate_number')
             .order('estimate_number', { ascending: false })
             .limit(1)
+        if (error) console.error('estimate number fetch error:', error)
 
         if (!data || data.length === 0) return 'E-00001'
 

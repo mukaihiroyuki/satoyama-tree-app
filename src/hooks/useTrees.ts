@@ -26,7 +26,6 @@ export function useTrees() {
             repo.getPendingEditCount(),
         ]).then(([treesData, speciesData, count]) => {
             if (!cancelled) {
-                console.log(`[useTrees] loaded: ${treesData.length} trees, ${speciesData.length} species`)
                 setTrees(treesData)
                 setSpecies(speciesData)
                 setPendingCount(count)

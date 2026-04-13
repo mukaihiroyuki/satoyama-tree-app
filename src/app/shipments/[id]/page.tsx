@@ -166,13 +166,14 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
         setAddSearching(true)
         try {
             const supabase = createClient()
-            const { data } = await supabase
+            const { data, error } = await supabase
                 .from('trees')
                 .select('id, management_number, price, height, trunk_count, species:species_master(name)')
                 .in('status', ['in_stock', 'reserved'])
                 .ilike('management_number', `%${addSearch.trim()}%`)
                 .order('management_number')
                 .limit(50)
+            if (error) console.error('tree search error:', error)
             setAddSearchResults((data as unknown as typeof addSearchResults) || [])
         } finally {
             setAddSearching(false)
@@ -254,7 +255,8 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                 .eq('shipment_id', shipment.id)
 
             if (count === 0) {
-                await supabase.from('shipments').delete().eq('id', shipment.id)
+                const { error: delErr } = await supabase.from('shipments').delete().eq('id', shipment.id)
+                if (delErr) console.error('shipment delete error:', delErr)
                 router.push('/shipments')
                 return
             }
@@ -438,7 +440,8 @@ export default function ShipmentDetailPage({ params }: { params: Promise<{ id: s
                 .select('id', { count: 'exact', head: true })
                 .eq('shipment_id', shipment.id)
             if (count === 0) {
-                await supabase.from('shipments').delete().eq('id', shipment.id)
+                const { error: delErr } = await supabase.from('shipments').delete().eq('id', shipment.id)
+                if (delErr) console.error('shipment delete error:', delErr)
                 router.push('/shipments')
                 return
             }
