@@ -27,6 +27,11 @@ export default function ClientsPage() {
     const [deleting, setDeleting] = useState<string | null>(null)
     const [editingRateId, setEditingRateId] = useState<string | null>(null)
     const [editingRateValue, setEditingRateValue] = useState('')
+    const [editingClient, setEditingClient] = useState<Client | null>(null)
+    const [editName, setEditName] = useState('')
+    const [editAddress, setEditAddress] = useState('')
+    const [editNotes, setEditNotes] = useState('')
+    const [updating, setUpdating] = useState(false)
 
     const fetchClients = async () => {
         const supabase = createClient()
@@ -106,6 +111,64 @@ export default function ClientsPage() {
             await fetchClients()
         }
         setEditingRateId(null)
+    }
+
+    const openEdit = (c: Client) => {
+        setEditingClient(c)
+        setEditName(c.name)
+        setEditAddress(c.address || '')
+        setEditNotes(c.notes || '')
+    }
+
+    const closeEdit = () => {
+        setEditingClient(null)
+        setEditName('')
+        setEditAddress('')
+        setEditNotes('')
+    }
+
+    const handleEditSave = async () => {
+        if (!editingClient) return
+        if (!editName.trim()) {
+            alert('名前は必須です')
+            return
+        }
+
+        const newName = editName.trim()
+        const newAddress = editAddress.trim() || null
+        const newNotes = editNotes.trim() || null
+
+        // 変更なし検知
+        if (
+            newName === editingClient.name &&
+            newAddress === (editingClient.address || null) &&
+            newNotes === (editingClient.notes || null)
+        ) {
+            closeEdit()
+            return
+        }
+
+        // 二重確認
+        if (!confirm(`「${editingClient.name}」の情報を更新しますか？`)) return
+
+        setUpdating(true)
+        const supabase = createClient()
+        const { error } = await supabase
+            .from('clients')
+            .update({
+                name: newName,
+                address: newAddress,
+                notes: newNotes,
+            })
+            .eq('id', editingClient.id)
+
+        if (error) {
+            alert('更新に失敗しました: ' + error.message)
+        } else {
+            closeEdit()
+            await fetchClients()
+        }
+        setUpdating(false)
     }
 
     const formatRate = (rate: number | null) => {
@@ -282,11 +345,18 @@ export default function ClientsPage() {
                                             />
                                             <span className="text-[10px] text-gray-400">PIN 4~6桁</span>
                                         </div>
-                                        <div>
+                                        <div className="flex items-center gap-3">
+                                            <button
+                                                onClick={() => openEdit(c)}
+                                                disabled={!!editingClient}
+                                                className="text-blue-600 hover:text-blue-800 disabled:text-gray-300 text-xs font-bold"
+                                            >
+                                                編集
+                                            </button>
                                             <button
                                                 onClick={() => handleDelete(c)}
-                                                disabled={deleting === c.id}
-                                                className="text-red-500 hover:text-red-700 text-xs font-bold"
+                                                disabled={deleting === c.id || !!editingClient}
+                                                className="text-red-500 hover:text-red-700 disabled:text-gray-300 text-xs font-bold"
                                             >
                                                 {deleting === c.id ? '削除中...' : '削除'}
                                             </button>
@@ -305,6 +375,61 @@ export default function ClientsPage() {
                     </table>
                 </div>
             </main>
+
+            {/* 編集モーダル */}
+            {editingClient && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+                        <h2 className="text-lg font-bold text-gray-800 mb-4">クライアント情報の編集</h2>
+                        <div className="flex flex-col gap-3">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 mb-1">名前（必須）</label>
+                                <input
+                                    type="text"
+                                    value={editName}
+                                    onChange={(e) => setEditName(e.target.value)}
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    autoFocus
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 mb-1">住所</label>
+                                <input
+                                    type="text"
+                                    value={editAddress}
+                                    onChange={(e) => setEditAddress(e.target.value)}
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 mb-1">備考</label>
+                                <input
+                                    type="text"
+                                    value={editNotes}
+                                    onChange={(e) => setEditNotes(e.target.value)}
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-3 mt-6">
+                            <button
+                                onClick={closeEdit}
+                                disabled={updating}
+                                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 disabled:text-gray-300"
+                            >
+                                キャンセル
+                            </button>
+                            <button
+                                onClick={handleEditSave}
+                                disabled={updating || !editName.trim()}
+                                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-6 py-2 rounded-lg font-bold text-sm transition-colors"
+                            >
+                                {updating ? '保存中...' : '保存'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
