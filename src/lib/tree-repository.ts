@@ -398,6 +398,20 @@ export async function getPendingEditCount(): Promise<number> {
 }
 
 // ------------------------------------------------------------------
+// 未同期キューを全削除（救済用）
+// 永久ループで詰まった時に、ローカルの未同期分を破棄する
+// ------------------------------------------------------------------
+export async function clearPendingQueue(): Promise<void> {
+    // 仮IDで表示されているキャッシュ行も一緒に消す（本物IDで再表示される）
+    const pendingRegs = await db.pendingRegistrations.toArray()
+    for (const reg of pendingRegs) {
+        await db.trees.delete(reg.temp_id)
+    }
+    await db.pendingEdits.clear()
+    await db.pendingRegistrations.clear()
+}
+
+// ------------------------------------------------------------------
 // ヘルパー: 未同期の編集をキャッシュデータに上書き適用
 // ------------------------------------------------------------------
 async function applyPendingEdits(tree: CachedTree): Promise<CachedTree> {
@@ -529,43 +543,59 @@ async function syncPendingRegistrations(): Promise<number> {
 
     for (const reg of pending) {
         try {
-            // サーバー側で正式な管理番号を採番（衝突安全）
-            let managementNumber: string | null = null
-            if (reg.species_code) {
-                const year = new Date(reg.created_at).getFullYear().toString().slice(-2)
-                const prefix = `${year}-${reg.species_code}-`
+            // 管理番号の採番 → insert は最大3回までリトライ。
+            // 別PCが同じ番号を先に取ると 23505(unique_violation) が返るため、
+            // その時だけ max を取り直して再採番する。
+            const MAX_RETRIES = 3
+            let newTree: { id: string;[key: string]: unknown } | null = null
+            let lastError: { code?: string; message?: string } | null = null
 
-                const { data: maxTree } = await supabase
+            for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+                let managementNumber: string | null = null
+                if (reg.species_code) {
+                    const year = new Date(reg.created_at).getFullYear().toString().slice(-2)
+                    const prefix = `${year}-${reg.species_code}-`
+
+                    const { data: maxTree } = await supabase
+                        .from('trees')
+                        .select('management_number')
+                        .like('management_number', `${prefix}%`)
+                        .order('management_number', { ascending: false })
+                        .limit(1)
+                        .single()
+
+                    const nextNumber = maxTree?.management_number
+                        ? parseInt(maxTree.management_number.split('-')[2]) + 1
+                        : 1
+                    managementNumber = `${prefix}${nextNumber.toString().padStart(4, '0')}`
+                }
+
+                const { data, error } = await supabase
                     .from('trees')
-                    .select('management_number')
-                    .like('management_number', `${prefix}%`)
-                    .order('management_number', { ascending: false })
-                    .limit(1)
+                    .insert({
+                        species_id: reg.species_id,
+                        height: reg.height,
+                        trunk_count: reg.trunk_count,
+                        price: reg.price,
+                        notes: reg.notes,
+                        location: reg.location,
+                        management_number: managementNumber,
+                    })
+                    .select()
                     .single()
 
-                const nextNumber = maxTree?.management_number
-                    ? parseInt(maxTree.management_number.split('-')[2]) + 1
-                    : 1
-                managementNumber = `${prefix}${nextNumber.toString().padStart(4, '0')}`
+                if (!error) {
+                    newTree = data as { id: string;[key: string]: unknown }
+                    break
+                }
+
+                lastError = error
+                if (error.code !== '23505') break
+                console.warn(`管理番号が重複 (${managementNumber}) — 再採番して再試行 ${attempt + 1}/${MAX_RETRIES}`)
             }
 
-            // Supabaseにinsert
-            const { data: newTree, error } = await supabase
-                .from('trees')
-                .insert({
-                    species_id: reg.species_id,
-                    height: reg.height,
-                    trunk_count: reg.trunk_count,
-                    price: reg.price,
-                    notes: reg.notes,
-                    location: reg.location,
-                    management_number: managementNumber,
-                })
-                .select()
-                .single()
-
-            if (error) {
-                console.error(`Sync registration failed:`, error)
+            if (!newTree) {
+                console.error(`Sync registration failed:`, lastError)
                 continue
             }
 

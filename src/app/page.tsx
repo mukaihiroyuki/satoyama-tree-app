@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import OfflineCacheWarmer from '@/components/OfflineCacheWarmer'
 import ScanErrorAlerts from '@/components/ScanErrorAlerts'
+import ClearPendingQueueButton from '@/components/ClearPendingQueueButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -215,6 +216,7 @@ export default async function Home() {
             >
               操作ログ
             </Link>
+            <ClearPendingQueueButton />
           </div>
         </details>
 
