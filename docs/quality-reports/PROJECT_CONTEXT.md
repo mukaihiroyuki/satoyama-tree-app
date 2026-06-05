@@ -104,11 +104,26 @@
 
 ### [CHECK-D] 弱い認証スコープの拡大監視
 
-**What to look for:** 設計上受容しているブラウザ側 PIN 認証・anon アクセスが、新しいエンドポイントやページに広がっていないか。「現状維持なら OK、増えたらフラグ」型のチェック。
+**What to look for:** 設計上受容している anon アクセス（ポータルルート）が、新しいページ・エンドポイントに広がっていないか。「現状維持なら OK、増えたらフラグ」型のチェック。
 
-**Files to inspect:** `src/app/c/` 配下の全ページ（既存の受容済みルート）。それ以外のページ（`src/app/trees/`, `src/app/shipments/`, `src/app/clients/` 等）で `createClient()` を使って auth チェックなしに DB 読み書きしているパターンを検出する。
+**2026-06-05 時点の受容済みパターン（ベースライン）:**
 
-**Actionable when:** `src/app/c/` 以外のページで、`supabase.auth.getUser()` なしに Supabase クエリが実行されているコードが新規追加されている場合。
+以下の 2 ページ（ファイル計 2 件）は意図的に Supabase Auth なし・anon クライアントで動作する。これらは週次チェックでフラグしない：
+
+| ページ | ファイル | アクセス制御 |
+|--------|---------|-------------|
+| クライアントポータル index | `src/app/c/[clientId]/page.tsx` | 任意 PIN（4〜6桁）または無制限 |
+| クライアントポータル出荷詳細 | `src/app/c/[clientId]/s/[shipmentId]/page.tsx` | 同上 |
+
+**admin ページの扱い（フラグしない）:**  
+`src/app/trees/`, `src/app/shipments/`, `src/app/clients/`, `src/app/estimates/`, `src/app/species/`, `src/app/scan/`, `src/app/logs/`, `src/app/reservation-scan/` 等は全て `@/lib/supabase/client`（ブラウザクライアント）を使うが、Supabase RLS `TO authenticated` ポリシーがデータを保護している。明示的な `auth.getUser()` チェックはないが、これは RLS 依存の設計であり受容済み。
+
+**Files to inspect:** `src/app/` 配下の全 `page.tsx`、`src/app/api/` 配下の全 `route.ts`
+
+**Actionable when:** 以下のいずれかに該当する新規ファイル・コードが追加されている場合：
+1. `src/app/c/` 以外のパスで `@/lib/supabase/client` の `createClient()` を使い、かつ anon ロール向けの RLS ポリシー（`TO anon` / `TO public`）が必要なテーブルにアクセスしている
+2. `src/app/api/` 配下のルートが `auth.getUser()` なしで機密データを返している（CHECK-1 と重複するが、スコープ拡大の文脈で再確認する）
+3. 上記ベースラインの受容済みページリストに新しいファイルが追加されている
 
 ---
 
