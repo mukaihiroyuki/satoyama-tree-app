@@ -56,7 +56,9 @@ async function getShippedByFiscalYear() {
       console.error('Error fetching shipped trees:', error)
       return { years: [], unknown: 0 }
     }
-    rows.push(...((data || []) as Row[]))
+    // Supabaseはネスト関係(shipments)を配列型と推論するが、実体は1対1のオブジェクト。
+    // tree-repository と同じ実行時の形に合わせるため unknown 経由でキャストする。
+    rows.push(...((data ?? []) as unknown as Row[]))
     if (!data || data.length < PAGE) break // 最後のページ
   }
 
