@@ -3,6 +3,7 @@ import Link from 'next/link'
 import OfflineCacheWarmer from '@/components/OfflineCacheWarmer'
 import ScanErrorAlerts from '@/components/ScanErrorAlerts'
 import ClearPendingQueueButton from '@/components/ClearPendingQueueButton'
+import { getFiscalYear } from '@/lib/fiscal-year'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,6 +34,52 @@ async function getTreeStats() {
   }
 }
 
+// 出荷済みの樹木を「年度別」に集計（年度は4月〜翌3月）
+// 注: 出荷日は trees テーブルに無く、shipments テーブルが正本。
+//     tree-repository と同様に shipment_items→shipments を JOIN して取得する。
+async function getShippedByFiscalYear() {
+  const supabase = await createClient()
+
+  // Supabaseは1リクエストで最大1000行しか返さないため、1000件ずつ全件取り切る。
+  // （出荷済みは数千本あり得るので、ページングしないと年度別合計が1000で頭打ちになる）
+  const PAGE = 1000
+  type Row = { shipment_items: { shipments: { shipped_at: string | null } | null }[] | null }
+  const rows: Row[] = []
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('trees')
+      .select('shipment_items(shipments(shipped_at))')
+      .eq('status', 'shipped')
+      .range(from, from + PAGE - 1)
+
+    if (error) {
+      console.error('Error fetching shipped trees:', error)
+      return { years: [], unknown: 0 }
+    }
+    rows.push(...((data || []) as Row[]))
+    if (!data || data.length < PAGE) break // 最後のページ
+  }
+
+  const map = new Map<number, { reiwa: number; startYear: number; count: number }>()
+  let unknown = 0 // 出荷日が特定できないもの（出荷明細が無い等）
+
+  for (const row of rows) {
+    // shipment_items[0].shipments.shipped_at をフラット化（tree-repository と同じ取り方）
+    const shippedAt = row.shipment_items?.[0]?.shipments?.shipped_at || null
+    const fy = getFiscalYear(shippedAt)
+    if (!fy) {
+      unknown++
+      continue
+    }
+    const cur = map.get(fy.reiwa) || { reiwa: fy.reiwa, startYear: fy.startYear, count: 0 }
+    cur.count++
+    map.set(fy.reiwa, cur)
+  }
+
+  const years = [...map.values()].sort((a, b) => b.reiwa - a.reiwa) // 新しい年度順
+  return { years, unknown }
+}
+
 // 樹種一覧を取得
 async function getSpecies() {
   const supabase = await createClient()
@@ -53,6 +100,7 @@ async function getSpecies() {
 export default async function Home() {
   const stats = await getTreeStats()
   const species = await getSpecies()
+  const shippedByYear = await getShippedByFiscalYear()
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
@@ -113,6 +161,37 @@ export default async function Home() {
             />
           </div>
         </div>
+
+        {/* 出荷済み（年度別） */}
+        {(shippedByYear.years.length > 0 || shippedByYear.unknown > 0) && (
+          <div className="mb-8">
+            <h2 className="text-lg font-bold text-gray-700 mb-3">📦 出荷済み（年度別）</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {shippedByYear.years.map((fy) => (
+                <Link
+                  key={fy.reiwa}
+                  href={`/trees?status=shipped&fy=${fy.reiwa}`}
+                  className="block rounded-xl border-2 bg-purple-50 border-purple-200 text-purple-800 hover:bg-purple-100 transition-colors active:scale-95 p-4"
+                >
+                  <p className="font-bold text-base">R{fy.reiwa}年度</p>
+                  <p className="text-xs opacity-70">{fy.startYear}/4〜{fy.startYear + 1}/3 出荷分</p>
+                  <p className="font-bold text-2xl mt-1">
+                    {fy.count}<span className="ml-1 text-sm">本</span>
+                  </p>
+                </Link>
+              ))}
+              {shippedByYear.unknown > 0 && (
+                <div className="block rounded-xl border-2 bg-gray-50 border-gray-200 text-gray-500 p-4">
+                  <p className="font-bold text-base">出荷日 未入力</p>
+                  <p className="text-xs opacity-70">年度を特定できない出荷</p>
+                  <p className="font-bold text-2xl mt-1">
+                    {shippedByYear.unknown}<span className="ml-1 text-sm">本</span>
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* スキャンエラーアラート */}
         <ScanErrorAlerts />

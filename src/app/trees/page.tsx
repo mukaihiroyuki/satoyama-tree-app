@@ -10,6 +10,7 @@ import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
 import { createClient } from '@/lib/supabase/client'
 import { useTrees } from '@/hooks/useTrees'
 import { logActivityBulk } from '@/lib/activity-log'
+import { getFiscalYear, fiscalYearLabel } from '@/lib/fiscal-year'
 
 const statusLabels: Record<string, { label: string; color: string }> = {
     in_stock: { label: '在庫あり', color: 'bg-green-100 text-green-800' },
@@ -42,6 +43,7 @@ function TreesPage() {
     const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'in_stock')
     const [clientFilter, setClientFilter] = useState(searchParams.get('client') || '')
     const [shippedAtFilter, setShippedAtFilter] = useState(searchParams.get('shipped_at') || '')
+    const [fiscalYearFilter, setFiscalYearFilter] = useState(searchParams.get('fy') || '')
     const [estimateNumberFilter, setEstimateNumberFilter] = useState(searchParams.get('estimate') || '')
     const [noMgmtNumberFilter, setNoMgmtNumberFilter] = useState(searchParams.get('no_mgmt') === '1')
 
@@ -53,11 +55,12 @@ function TreesPage() {
         if (statusFilter && statusFilter !== 'in_stock') params.set('status', statusFilter)
         if (clientFilter) params.set('client', clientFilter)
         if (shippedAtFilter) params.set('shipped_at', shippedAtFilter)
+        if (fiscalYearFilter) params.set('fy', fiscalYearFilter)
         if (estimateNumberFilter) params.set('estimate', estimateNumberFilter)
         if (noMgmtNumberFilter) params.set('no_mgmt', '1')
         const qs = params.toString()
         router.replace(`/trees${qs ? `?${qs}` : ''}`, { scroll: false })
-    }, [speciesFilter, locationFilter, statusFilter, clientFilter, shippedAtFilter, estimateNumberFilter, noMgmtNumberFilter, router])
+    }, [speciesFilter, locationFilter, statusFilter, clientFilter, shippedAtFilter, fiscalYearFilter, estimateNumberFilter, noMgmtNumberFilter, router])
 
     useEffect(() => {
         syncFiltersToUrl()
@@ -83,6 +86,16 @@ function TreesPage() {
         )] as string[]
     }, [trees])
 
+    // データに存在する出荷年度の一覧（新しい年度順）
+    const fiscalYears = useMemo(() => {
+        const map = new Map<number, { reiwa: number; startYear: number }>()
+        for (const t of trees) {
+            const fy = getFiscalYear(t.shipped_at)
+            if (fy) map.set(fy.reiwa, fy)
+        }
+        return [...map.values()].sort((a, b) => b.reiwa - a.reiwa)
+    }, [trees])
+
     // フィルタ適用
     const filteredTrees = useMemo(() => trees.filter(tree => {
         if (speciesFilter && tree.species?.name !== speciesFilter) return false
@@ -90,10 +103,14 @@ function TreesPage() {
         if (statusFilter && tree.status !== statusFilter) return false
         if (clientFilter && tree.client?.name !== clientFilter) return false
         if (shippedAtFilter && tree.shipped_at !== shippedAtFilter) return false
+        if (fiscalYearFilter) {
+            const fy = getFiscalYear(tree.shipped_at)
+            if (!fy || String(fy.reiwa) !== fiscalYearFilter) return false
+        }
         if (estimateNumberFilter && !(tree.estimate_number || '').includes(estimateNumberFilter)) return false
         if (noMgmtNumberFilter && tree.management_number) return false
         return true
-    }), [trees, speciesFilter, locationFilter, statusFilter, clientFilter, shippedAtFilter, estimateNumberFilter, noMgmtNumberFilter])
+    }), [trees, speciesFilter, locationFilter, statusFilter, clientFilter, shippedAtFilter, fiscalYearFilter, estimateNumberFilter, noMgmtNumberFilter])
 
     // 管理番号なしの総数（バッジ表示用）
     const noMgmtCount = useMemo(() => trees.filter(t => !t.management_number).length, [trees])
@@ -526,6 +543,23 @@ function TreesPage() {
                             </select>
                         </div>
 
+                        {/* 出荷年度フィルター */}
+                        <div className="flex-1 min-w-[150px]">
+                            <label className="block text-sm font-medium text-gray-600 mb-1">出荷年度</label>
+                            <select
+                                value={fiscalYearFilter}
+                                onChange={(e) => setFiscalYearFilter(e.target.value)}
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                            >
+                                <option value="">すべて</option>
+                                {fiscalYears.map((fy) => (
+                                    <option key={fy.reiwa} value={String(fy.reiwa)}>
+                                        {fiscalYearLabel(fy)}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
                         {/* 出荷日フィルター */}
                         <div className="flex-1 min-w-[150px]">
                             <label className="block text-sm font-medium text-gray-600 mb-1">出荷日</label>
@@ -579,6 +613,7 @@ function TreesPage() {
                                     setStatusFilter('')
                                     setClientFilter('')
                                     setShippedAtFilter('')
+                                    setFiscalYearFilter('')
                                     setEstimateNumberFilter('')
                                     setNoMgmtNumberFilter(false)
                                     setSelectedIds([])
