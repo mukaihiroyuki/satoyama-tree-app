@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import AdmZip from 'adm-zip'
+import { createClient } from '@/lib/supabase/server'
 
 /**
  * QRコードデータを埋め込んだ .lbx テンプレートを動的に生成
@@ -13,6 +14,12 @@ export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const { id: rawId } = await params
     // .lbx拡張子とキャッシュバスター(_timestamp)を除去してツリーIDを取得
     const treeId = rawId.replace(/\.lbx$/, '').replace(/_\d+$/, '')

@@ -37,6 +37,9 @@ export function useStaffPin() {
     const logout = useCallback(() => {
         localStorage.removeItem(STORAGE_KEY)
         setTick(t => t + 1)
+        // 端末引き継ぎ・紛失時のデータ漏洩を防ぐため IndexedDB を削除する。
+        // dexie は SSR で静的 import 不可のため動的 import で呼ぶ。
+        import('@/lib/db').then(({ db }) => db.delete()).catch(() => {})
     }, [])
 
     return { staffName, loaded: true, login, logout }
