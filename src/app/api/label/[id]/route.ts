@@ -2,24 +2,21 @@ import { NextRequest, NextResponse } from 'next/server'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import AdmZip from 'adm-zip'
-import { createClient } from '@/lib/supabase/server'
 
 /**
  * QRコードデータを埋め込んだ .lbx テンプレートを動的に生成
  *
  * GET /api/label/[treeId]
  * → QRデータとしてtreeIdを埋め込み、レイアウトを動的に調整
+ *
+ * 認証なし（意図的）: Brother Smooth Print が Cookie を持たずに直接ダウンロードするため、
+ * Cookie ベース認証は付けられない。URL クエリパラメータも Smooth Print の仕様で禁止。
+ * tree ID は UUIDv4 のため推測困難。許容済みリスク。
  */
 export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const { id: rawId } = await params
     // .lbx拡張子とキャッシュバスター(_timestamp)を除去してツリーIDを取得
     const treeId = rawId.replace(/\.lbx$/, '').replace(/_\d+$/, '')
