@@ -4,6 +4,19 @@ import { PRIORITY_SPECIES } from './constants'
 
 export type TreeUpdate = Record<string, string | number | null>
 
+// 電波が「繋がっているが超遅い」状態でUIが固まらないようにするタイムアウト。
+// キャッシュが空のとき（初回起動後）と編集同期時のみ使用する。
+const SUPABASE_TIMEOUT_MS = 5000
+
+function withTimeout<T>(promise: PromiseLike<T>, ms = SUPABASE_TIMEOUT_MS): Promise<T> {
+    return Promise.race([
+        Promise.resolve(promise),
+        new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Supabase timeout')), ms)
+        ),
+    ])
+}
+
 // ------------------------------------------------------------------
 // 一覧取得（オフラインファースト）
 // キャッシュを即座に返し、バックグラウンドでSupabase同期
@@ -32,11 +45,13 @@ export async function getAllTrees(
             let from = 0
             const PAGE_SIZE = 1000
             while (true) {
-                const { data: page, error: pageError } = await supabase
-                    .from('trees')
-                    .select('*, species:species_master(id, name), client:clients(id, name), shipment_items(shipments(shipped_at))')
-                    .order('created_at', { ascending: false })
-                    .range(from, from + PAGE_SIZE - 1)
+                const { data: page, error: pageError } = await withTimeout(
+                    supabase
+                        .from('trees')
+                        .select('*, species:species_master(id, name), client:clients(id, name), shipment_items(shipments(shipped_at))')
+                        .order('created_at', { ascending: false })
+                        .range(from, from + PAGE_SIZE - 1)
+                )
                 if (pageError) {
                     console.error('[getAllTrees] Supabase error:', pageError)
                     return result
@@ -154,11 +169,13 @@ export async function getTree(
 
         try {
             const supabase = createClient()
-            const { data, error } = await supabase
-                .from('trees')
-                .select('*, species:species_master(id, name), client:clients(id, name), shipment_items(shipments(shipped_at))')
-                .eq('id', id)
-                .single()
+            const { data, error } = await withTimeout(
+                supabase
+                    .from('trees')
+                    .select('*, species:species_master(id, name), client:clients(id, name), shipment_items(shipments(shipped_at))')
+                    .eq('id', id)
+                    .single()
+            )
 
             if (error) {
                 console.error('[getTree] Supabase error:', error)
@@ -231,10 +248,12 @@ export async function getAllSpecies(
     if (cached.length === 0) {
         try {
             const supabase = createClient()
-            const { data, error } = await supabase
-                .from('species_master')
-                .select('id, name, name_kana, code')
-                .order('name_kana')
+            const { data, error } = await withTimeout(
+                supabase
+                    .from('species_master')
+                    .select('id, name, name_kana, code')
+                    .order('name_kana')
+            )
 
             if (error) {
                 console.error('[getAllSpecies] Supabase error:', error)
@@ -310,10 +329,12 @@ export async function saveEdit(
     let synced = false
     try {
         const supabase = createClient()
-        const { error } = await supabase
-            .from('trees')
-            .update(updates)
-            .eq('id', treeId)
+        const { error } = await withTimeout(
+            supabase
+                .from('trees')
+                .update(updates)
+                .eq('id', treeId)
+        )
 
         if (!error) {
             // 成功 → pendingEditsから該当レコード削除
