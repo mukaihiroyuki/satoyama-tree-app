@@ -153,15 +153,6 @@ export default async function Home() {
               href="/shipments"
             />
           </div>
-          <div className="mt-3 pl-4">
-            <StatCard
-              title="訳アリ"
-              value={stats.disabled}
-              unit="本"
-              color="red"
-              href="/trees?status=disabled"
-            />
-          </div>
         </div>
 
         {/* 出荷済み（年度別） */}
@@ -296,6 +287,12 @@ export default async function Home() {
               className="bg-white hover:bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-bold text-gray-700 text-center transition-all"
             >
               操作ログ
+            </Link>
+            <Link
+              href="/trees?status=disabled"
+              className="bg-white hover:bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-bold text-gray-700 text-center transition-all"
+            >
+              無効化済み（{stats.disabled}本）
             </Link>
             <ClearPendingQueueButton />
           </div>

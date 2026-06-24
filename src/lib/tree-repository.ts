@@ -556,18 +556,24 @@ async function syncPendingRegistrations(): Promise<number> {
                     const year = new Date(reg.created_at).getFullYear().toString().slice(-2)
                     const prefix = `${year}-${reg.species_code}-`
 
-                    const { data: maxTree } = await supabase
+                    // 同prefixの番号を降順取得し、末尾を数値化して最大を取る。
+                    // 注: 文字列降順の単純な先頭採用は禁止。誤登録修正フローの「仮」番号
+                    //     (例: 26-AD-仮0001) は数字より後ろにソートされ先頭に来るため、
+                    //     parseInt('仮0001')=NaN → '26-AD-0NaN' を生む事故になる(2026-06アカシデで実発生)。
+                    //     isNaN を弾いて数値最大を取る = registerTreeOffline と同じ方式に揃える。
+                    //     limit(1000): 同樹種が1000本超でも、数値最大は降順の先頭付近に必ず含まれる。
+                    const { data: rows } = await supabase
                         .from('trees')
                         .select('management_number')
                         .like('management_number', `${prefix}%`)
                         .order('management_number', { ascending: false })
-                        .limit(1)
-                        .single()
+                        .limit(1000)
 
-                    const nextNumber = maxTree?.management_number
-                        ? parseInt(maxTree.management_number.split('-')[2]) + 1
-                        : 1
-                    managementNumber = `${prefix}${nextNumber.toString().padStart(4, '0')}`
+                    const maxNum = (rows ?? []).reduce((max, r) => {
+                        const num = parseInt(r.management_number?.split('-')[2] ?? '', 10)
+                        return isNaN(num) ? max : Math.max(max, num)
+                    }, 0)
+                    managementNumber = `${prefix}${(maxNum + 1).toString().padStart(4, '0')}`
                 }
 
                 const { data, error } = await supabase
