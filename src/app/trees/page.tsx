@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback, useEffect, Suspense } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import ShipmentDialog from '@/components/ShipmentDialog'
@@ -114,6 +114,36 @@ function TreesPage() {
 
     // 管理番号なしの総数（バッジ表示用）
     const noMgmtCount = useMemo(() => trees.filter(t => !t.management_number).length, [trees])
+
+    // 段階表示: 一度にDOM化する行数を制限し、スクロールで追加読込する。
+    // 在庫数千本を全件<tbody>に流すとDOMが肥大化し（約45,000ノード）、
+    // 削除・編集・フィルタのたびに重い再レイアウトが走って操作がもたつくため。
+    // データ層・フィルタ・選択ロジックは無傷（全選択/CSVは配列ベースで全件対象のまま）。
+    const PAGE_SIZE = 100
+    const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+    const loadMoreRef = useRef<HTMLTableRowElement | null>(null)
+
+    // フィルタ条件が変わったら先頭から再表示
+    useEffect(() => {
+        setVisibleCount(PAGE_SIZE)
+    }, [speciesFilter, locationFilter, statusFilter, clientFilter, shippedAtFilter, fiscalYearFilter, estimateNumberFilter, noMgmtNumberFilter])
+
+    // 画面に出す分だけスライス
+    const visibleTrees = useMemo(() => filteredTrees.slice(0, visibleCount), [filteredTrees, visibleCount])
+
+    // 番兵行がビューポート手前に入ったら次の100件を追加
+    useEffect(() => {
+        if (visibleCount >= filteredTrees.length) return
+        const el = loadMoreRef.current
+        if (!el) return
+        const observer = new IntersectionObserver((entries) => {
+            if (entries[0]?.isIntersecting) {
+                setVisibleCount((c) => Math.min(c + PAGE_SIZE, filteredTrees.length))
+            }
+        }, { rootMargin: '600px' })
+        observer.observe(el)
+        return () => observer.disconnect()
+    }, [visibleCount, filteredTrees.length])
 
     // 選択操作
     const toggleSelectAll = () => {
@@ -669,7 +699,7 @@ function TreesPage() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
-                                    {filteredTrees.map((tree) => (
+                                    {visibleTrees.map((tree) => (
                                         <tr
                                             key={tree.id}
                                             className={`hover:bg-green-50 transition-colors cursor-pointer ${selectedIds.includes(tree.id) ? 'bg-green-50/50' : ''}`}
@@ -720,6 +750,13 @@ function TreesPage() {
                                             </td>
                                         </tr>
                                     ))}
+                                    {visibleCount < filteredTrees.length && (
+                                        <tr ref={loadMoreRef}>
+                                            <td colSpan={12} className="px-4 py-4 text-center text-sm text-gray-400">
+                                                スクロールで続きを表示（{visibleCount} / {filteredTrees.length} 件）
+                                            </td>
+                                        </tr>
+                                    )}
                                 </tbody>
                             </table>
                         </div>
