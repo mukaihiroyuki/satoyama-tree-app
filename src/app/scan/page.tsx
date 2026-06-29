@@ -20,15 +20,15 @@ export default function ScanPage() {
     const [searching, setSearching] = useState(false)
     const [searchError, setSearchError] = useState<string | null>(null)
 
-    // QR読み取り結果を処理（UUIDのみ or フルURL 両対応）
-    const handleQrResult = useCallback((decodedText: string) => {
+    // QR読み取り結果を処理（UUID / フルURL / 管理番号 すべて対応）
+    const handleQrResult = useCallback(async (decodedText: string) => {
         setScanResult(decodedText)
         setScanning(false)
 
         const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
         const text = decodedText.trim()
 
-        // フルURL形式: https://...../trees/{uuid}
+        // フルURL形式: https://...../trees/{uuid}（旧ラベル）
         if (text.includes('/trees/')) {
             const id = text.split('/trees/').pop()
             const match = id?.match(uuidRegex)
@@ -38,14 +38,46 @@ export default function ScanPage() {
             }
         }
 
-        // UUIDのみ形式（新ラベル）
+        // UUIDのみ形式（旧ラベル）
         const directMatch = text.match(uuidRegex)
         if (directMatch) {
             router.push(`/trees/${directMatch[0]}`)
             return
         }
 
-        alert('このQRコードは里山アプリのタグではないようです')
+        // 管理番号形式: 手入力検索と同じ「確実に当たる」経路で引く。
+        // 圏外でも動くよう IndexedDB キャッシュを完全一致で優先し、無ければオンラインを試す。
+        const query = text.toUpperCase()
+        try {
+            const { db } = await import('@/lib/db')
+            const cached = await db.trees.toArray()
+            const found = cached.find(t => t.management_number?.toUpperCase() === query)
+            if (found) {
+                router.push(`/trees/${found.id}`)
+                return
+            }
+        } catch {
+            // IndexedDB が使えない場合は無視してオンラインへ
+        }
+
+        if (navigator.onLine) {
+            try {
+                const supabase = createClient()
+                const { data } = await supabase
+                    .from('trees')
+                    .select('id')
+                    .eq('management_number', text)
+                    .limit(1)
+                if (data && data.length > 0) {
+                    router.push(`/trees/${data[0].id}`)
+                    return
+                }
+            } catch {
+                // ネットワーク失敗は無視
+            }
+        }
+
+        alert(`「${text}」は里山アプリのタグとして認識できませんでした`)
         setScanning(true)
         setScanResult(null)
     }, [router])
