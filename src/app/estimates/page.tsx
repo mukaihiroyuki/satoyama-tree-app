@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import Link from 'next/link'
 import type { EstimateStatus } from '@/types/database'
 
@@ -15,7 +16,8 @@ interface EstimateRow {
     assignee: string | null
     created_at: string
     client: { name: string } | { name: string }[] | null
-    estimate_items: { unit_price: number }[]
+    // 本数は count 埋め込み（1000本超でも正確な件数を返す）
+    estimate_items: { count: number }[]
 }
 
 const statusColors: Record<string, string> = {
@@ -26,6 +28,9 @@ const statusColors: Record<string, string> = {
 
 export default function EstimatesPage() {
     const [estimates, setEstimates] = useState<EstimateRow[]>([])
+    // 見積IDごとの合計金額。集計関数(sum)がこのプロジェクトで禁止されており、
+    // 埋め込みは1000本で頭打ちになるため、全明細を軽い列だけページング取得してクライアント集計する。
+    const [totals, setTotals] = useState<Record<string, number>>({})
     const [loading, setLoading] = useState(true)
     const [statusFilter, setStatusFilter] = useState('')
 
@@ -44,12 +49,31 @@ export default function EstimatesPage() {
                     assignee,
                     created_at,
                     client:clients(name),
-                    estimate_items(unit_price)
+                    estimate_items(count)
                 `)
                 .order('created_at', { ascending: false })
 
             if (error) console.error('Estimates fetch error:', error)
             setEstimates((data as EstimateRow[]) || [])
+
+            // 合計金額用: 全明細を estimate_id + unit_price だけ全件取得して集計
+            try {
+                const allItems = await fetchAllRows<{ estimate_id: string; unit_price: number }>((from, to) =>
+                    supabase
+                        .from('estimate_items')
+                        .select('estimate_id, unit_price')
+                        .order('id', { ascending: true })
+                        .range(from, to)
+                )
+                const totalMap: Record<string, number> = {}
+                for (const it of allItems) {
+                    totalMap[it.estimate_id] = (totalMap[it.estimate_id] || 0) + it.unit_price
+                }
+                setTotals(totalMap)
+            } catch (e) {
+                console.error('Estimate totals fetch error:', e)
+            }
+
             setLoading(false)
         }
         fetch()
@@ -128,7 +152,8 @@ export default function EstimatesPage() {
                                         const clientName = Array.isArray(est.client)
                                             ? est.client[0]?.name
                                             : est.client?.name || '-'
-                                        const totalAmount = est.estimate_items.reduce((sum, i) => sum + i.unit_price, 0)
+                                        const itemCount = est.estimate_items[0]?.count ?? 0
+                                        const totalAmount = totals[est.id] ?? 0
                                         return (
                                             <tr
                                                 key={est.id}
@@ -143,7 +168,7 @@ export default function EstimatesPage() {
                                                     {est.rate !== null ? `${Math.round(est.rate * 100)}%` : '-'}
                                                 </td>
                                                 <td className="px-4 py-3 text-right text-sm">
-                                                    {est.estimate_items.length} 本
+                                                    {itemCount} 本
                                                 </td>
                                                 <td className="px-4 py-3 text-right font-bold text-green-700">
                                                     &yen;{totalAmount.toLocaleString()}

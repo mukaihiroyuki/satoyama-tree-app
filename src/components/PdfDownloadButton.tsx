@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import type { DocumentType, SpeciesLine } from './document-pdf-types'
 
 interface PdfDownloadButtonProps {
@@ -91,6 +92,7 @@ async function fetchDocumentData(estimateId?: string, shipmentId?: string): Prom
     let assignee: string | null = null
 
     if (estimateId) {
+        // ヘッダは単体取得。明細は埋め込みだと1000本で頭打ちになるため、別クエリで全件ページング取得。
         const { data, error } = await supabase
             .from('estimates')
             .select(`
@@ -98,24 +100,13 @@ async function fetchDocumentData(estimateId?: string, shipmentId?: string): Prom
                 issued_at,
                 notes,
                 assignee,
-                client:clients(name, address),
-                estimate_items(
-                    unit_price,
-                    original_price,
-                    tree:trees(
-                        management_number,
-                        height,
-                        trunk_count,
-                        notes,
-                        species:species_master(name)
-                    )
-                )
+                client:clients(name, address)
             `)
             .eq('id', estimateId)
             .single()
 
         if (error) throw error
-        const est = data as unknown as FetchedEstimate
+        const est = data as unknown as Omit<FetchedEstimate, 'estimate_items'>
         const client = Array.isArray(est.client) ? est.client[0] : est.client
         documentNumber = est.estimate_number
         issuedAt = est.issued_at || new Date().toISOString().split('T')[0]
@@ -123,17 +114,11 @@ async function fetchDocumentData(estimateId?: string, shipmentId?: string): Prom
         clientAddress = client?.address || null
         notes = est.notes
         assignee = est.assignee
-        lines = buildLines(est.estimate_items)
-    } else if (shipmentId) {
-        const { data, error } = await supabase
-            .from('shipments')
-            .select(`
-                id,
-                shipped_at,
-                notes,
-                client:clients(name, address),
-                estimate:estimates(estimate_number, assignee),
-                shipment_items(
+
+        const items = await fetchAllRows<FetchedEstimate['estimate_items'][number]>((from, to) =>
+            supabase
+                .from('estimate_items')
+                .select(`
                     unit_price,
                     original_price,
                     tree:trees(
@@ -143,13 +128,28 @@ async function fetchDocumentData(estimateId?: string, shipmentId?: string): Prom
                         notes,
                         species:species_master(name)
                     )
-                )
+                `)
+                .eq('estimate_id', estimateId)
+                .order('created_at', { ascending: true })
+                .range(from, to)
+        )
+        lines = buildLines(items)
+    } else if (shipmentId) {
+        // ヘッダは単体取得。明細は埋め込みだと1000本で頭打ちになるため、別クエリで全件ページング取得。
+        const { data, error } = await supabase
+            .from('shipments')
+            .select(`
+                id,
+                shipped_at,
+                notes,
+                client:clients(name, address),
+                estimate:estimates(estimate_number, assignee)
             `)
             .eq('id', shipmentId)
             .single()
 
         if (error) throw error
-        const ship = data as unknown as FetchedShipment
+        const ship = data as unknown as Omit<FetchedShipment, 'shipment_items'>
         const client = Array.isArray(ship.client) ? ship.client[0] : ship.client
         const estimate = Array.isArray(ship.estimate) ? ship.estimate[0] : ship.estimate
         documentNumber = estimate?.estimate_number || `S-${ship.id.slice(0, 8)}`
@@ -158,7 +158,26 @@ async function fetchDocumentData(estimateId?: string, shipmentId?: string): Prom
         clientAddress = client?.address || null
         notes = ship.notes
         assignee = estimate?.assignee || null
-        lines = buildLines(ship.shipment_items)
+
+        const items = await fetchAllRows<FetchedShipment['shipment_items'][number]>((from, to) =>
+            supabase
+                .from('shipment_items')
+                .select(`
+                    unit_price,
+                    original_price,
+                    tree:trees(
+                        management_number,
+                        height,
+                        trunk_count,
+                        notes,
+                        species:species_master(name)
+                    )
+                `)
+                .eq('shipment_id', shipmentId)
+                .order('created_at', { ascending: true })
+                .range(from, to)
+        )
+        lines = buildLines(items)
     }
 
     return { documentNumber, issuedAt, clientName, clientAddress, lines, notes, assignee }

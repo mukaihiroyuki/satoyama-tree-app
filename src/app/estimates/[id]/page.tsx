@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/client'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import Link from 'next/link'
 import type { EstimateStatus } from '@/types/database'
 import ShipmentDialog from '@/components/ShipmentDialog'
@@ -88,7 +89,9 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
 
     async function fetchEstimate() {
         const supabase = createClient()
-        const { data, error } = await supabase
+        // ヘッダは単体取得。明細(estimate_items)は埋め込みだと1000本で頭打ちになるため、
+        // 別クエリで .range() ページングして全件取得する（1000本超の見積対応）。
+        const { data: header, error } = await supabase
             .from('estimates')
             .select(`
                 id,
@@ -99,27 +102,47 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
                 notes,
                 assignee,
                 created_at,
-                client:clients(id, name, address),
-                estimate_items(
-                    id,
-                    unit_price,
-                    original_price,
-                    tree:trees(
-                        id,
-                        management_number,
-                        height,
-                        trunk_count,
-                        price,
-                        notes,
-                        species:species_master(name)
-                    )
-                )
+                client:clients(id, name, address)
             `)
             .eq('id', id)
             .single()
 
         if (error) console.error('Estimate fetch error:', error)
-        setEstimate(data as EstimateDetail | null)
+        if (!header) {
+            setEstimate(null)
+            setLoading(false)
+            return
+        }
+
+        let items: EstimateDetail['estimate_items'] = []
+        try {
+            items = await fetchAllRows<EstimateDetail['estimate_items'][number]>((from, to) =>
+                supabase
+                    .from('estimate_items')
+                    .select(`
+                        id,
+                        unit_price,
+                        original_price,
+                        tree:trees(
+                            id,
+                            management_number,
+                            height,
+                            trunk_count,
+                            price,
+                            notes,
+                            species:species_master(name)
+                        )
+                    `)
+                    .eq('estimate_id', id)
+                    .order('created_at', { ascending: true })
+                    .range(from, to)
+            )
+        } catch (e) {
+            // 明細取得に失敗してもヘッダは表示する（「読み込み中」で固まらせない）
+            console.error('Estimate items fetch error:', e)
+        }
+
+        setEstimate({ ...(header as unknown as Omit<EstimateDetail, 'estimate_items'>), estimate_items: items })
         setLoading(false)
     }
 
