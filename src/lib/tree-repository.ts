@@ -530,6 +530,25 @@ export function getSyncedNewId(tempId: string): string | undefined {
     return syncedIdMap.get(tempId)
 }
 
+// 23505(unique_violation) がどの一意制約由来かを判定する純粋関数。
+// PostgREST は message / details に制約名・列名を載せて返すため両方を見る:
+//   PK衝突       → constraint "trees_pkey" / Key (id)=(...) already exists
+//   管理番号衝突  → constraint "idx_trees_management_number" / Key (management_number)=(...)
+// 制約名は本番DBで実在を確認済み(2026-07-06: trees_pkey / idx_trees_management_number)。
+// 'other'(例: trees_tree_number_key)は再採番も冪等成功もせず、そのまま失敗扱いにする。
+export function classifyUniqueViolation(
+    error: { message?: string; details?: string | null }
+): 'pk' | 'mgmt' | 'other' {
+    const hay = `${error.message ?? ''} ${error.details ?? ''}`
+    if (hay.includes('idx_trees_management_number') || /Key \(management_number\)/.test(hay)) {
+        return 'mgmt'
+    }
+    if (hay.includes('trees_pkey') || /Key \(id\)/.test(hay)) {
+        return 'pk'
+    }
+    return 'other'
+}
+
 async function syncPendingRegistrations(): Promise<number> {
     const pending = await db.pendingRegistrations
         .where('synced')
@@ -543,16 +562,21 @@ async function syncPendingRegistrations(): Promise<number> {
 
     for (const reg of pending) {
         try {
-            // 管理番号の採番 → insert は最大3回までリトライ。
-            // 別PCが同じ番号を先に取ると 23505(unique_violation) が返るため、
-            // その時だけ max を取り直して再採番する。
+            // insert は最大3回までリトライ。
+            // ★ id は登録時の temp_id(クライアントUUID)を明示指定し、二度と振り直さない。
+            //    → 圃場で刷ったQRラベル(=id)が同期後も生き続ける／同じ登録の再送が冪等になる。
+            // 管理番号は初回は登録時に採番した値をそのまま使い(再送でも同じ番号)、
+            // 他端末と番号が衝突(23505 on idx_trees_management_number)した時だけ採番し直す。
             const MAX_RETRIES = 3
             let newTree: { id: string;[key: string]: unknown } | null = null
-            let lastError: { code?: string; message?: string } | null = null
+            let lastError: { code?: string; message?: string; details?: string | null } | null = null
+
+            // 初回は登録時にローカル採番した番号。衝突時のみ下で振り直す。
+            let managementNumber: string | null = reg.management_number
 
             for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-                let managementNumber: string | null = null
-                if (reg.species_code) {
+                // 2回目以降(管理番号がユニーク制約に衝突した時)だけ採番し直す。
+                if (attempt > 0 && reg.species_code) {
                     const year = new Date(reg.created_at).getFullYear().toString().slice(-2)
                     const prefix = `${year}-${reg.species_code}-`
 
@@ -579,6 +603,7 @@ async function syncPendingRegistrations(): Promise<number> {
                 const { data, error } = await supabase
                     .from('trees')
                     .insert({
+                        id: reg.temp_id,   // ★ クライアントUUIDを本PKに固定(同期でIDを振り直さない)
                         species_id: reg.species_id,
                         height: reg.height,
                         trunk_count: reg.trunk_count,
@@ -597,6 +622,21 @@ async function syncPendingRegistrations(): Promise<number> {
 
                 lastError = error
                 if (error.code !== '23505') break
+
+                const kind = classifyUniqueViolation(error)
+                if (kind === 'pk') {
+                    // 同じ登録(temp_id)が既にサーバに存在 = 前回attemptか別セッションの再送。
+                    // ＝冪等成功。サーバの実レコードを取り直してキャッシュを正とする。
+                    const { data: existing } = await supabase
+                        .from('trees')
+                        .select('*')
+                        .eq('id', reg.temp_id)
+                        .single()
+                    if (existing) newTree = existing as { id: string;[key: string]: unknown }
+                    break
+                }
+                if (kind === 'other') break  // 未知の一意制約(例: trees_tree_number_key)はリトライしない
+                // kind === 'mgmt' → 次ループで再採番
                 console.warn(`管理番号が重複 (${managementNumber}) — 再採番して再試行 ${attempt + 1}/${MAX_RETRIES}`)
             }
 
@@ -605,18 +645,14 @@ async function syncPendingRegistrations(): Promise<number> {
                 continue
             }
 
-            // キャッシュの仮データを本物のIDで差し替え
-            await db.trees.delete(reg.temp_id)
-            if (newTree) {
-                syncedIdMap.set(reg.temp_id, newTree.id)
-                const species = await db.species.get(reg.species_id)
-                await db.trees.put({
-                    ...newTree,
-                    shipped_at: null,
-                    species: species ? { id: species.id, name: species.name } : { id: reg.species_id, name: reg.species_name },
-                    client: null,
-                } as CachedTree)
-            }
+            // id は temp_id と同一 → 差し替え(delete)不要。同じ主キーへ上書きputでキャッシュを本物に。
+            const species = await db.species.get(reg.species_id)
+            await db.trees.put({
+                ...newTree,
+                shipped_at: null,
+                species: species ? { id: species.id, name: species.name } : { id: reg.species_id, name: reg.species_name },
+                client: null,
+            } as CachedTree)
 
             // 同期済みとしてマーク
             if (reg.id !== undefined) {
