@@ -103,18 +103,22 @@ export default function TreeDetailPage({ params }: { params: Promise<{ id: strin
             const year = new Date().getFullYear().toString().slice(-2)
             const prefix = `${year}-${speciesData.code}-`
 
-            const { data: maxTree } = await supabase
+            // 同prefixの番号を降順取得し、数値最大を取る（文字列maxは禁止）。
+            // 「仮」番号(例 26-AD-仮0001)は文字列降順で先頭に来て parseInt→NaN となり
+            // 26-AD-0NaN を生む(2026-06アカシデ事故)。isNaNを弾いて数値最大を取り、
+            // registerTreeOffline / syncPendingRegistrations と同じ方式に揃える。
+            const { data: rows } = await supabase
                 .from('trees')
                 .select('management_number')
                 .like('management_number', `${prefix}%`)
                 .order('management_number', { ascending: false })
-                .limit(1)
-                .single()
+                .limit(1000)
 
-            const nextNumber = maxTree?.management_number
-                ? parseInt(maxTree.management_number.split('-')[2]) + 1
-                : 1
-            const managementNumber = `${prefix}${nextNumber.toString().padStart(4, '0')}`
+            const maxNum = (rows ?? []).reduce((max, r) => {
+                const num = parseInt(r.management_number?.split('-')[2] ?? '', 10)
+                return isNaN(num) ? max : Math.max(max, num)
+            }, 0)
+            const managementNumber = `${prefix}${(maxNum + 1).toString().padStart(4, '0')}`
 
             const { error } = await supabase
                 .from('trees')
