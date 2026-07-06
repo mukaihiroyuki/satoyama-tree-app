@@ -367,13 +367,19 @@ export async function syncPendingEdits(): Promise<number> {
     let syncedCount = 0
 
     for (const [treeId, updates] of grouped) {
-        const { error } = await supabase
+        // .select('id') で更新された行を返させ、0行更新を「成功」にしない。
+        // reg未着地の temp_id 宛 update は 0行でもエラーが出ず、成功扱いにすると
+        // 編集が無音消失する(michipedia請求書事故と同型/地雷D)。0行は未着地として保留し次回へ。
+        const { data, error } = await supabase
             .from('trees')
             .update(updates)
             .eq('id', treeId)
+            .select('id')
 
-        if (!error) {
+        if (!error && data && data.length > 0) {
             syncedCount++
+        } else if (!error) {
+            console.warn(`Edit not landed (0 rows) for tree ${treeId} — 登録が未着地のため次回に保留`)
         } else {
             console.error(`Sync failed for tree ${treeId}:`, error)
         }
@@ -572,6 +578,7 @@ async function syncPendingRegistrations(): Promise<number> {
             const MAX_RETRIES = 3
             let newTree: { id: string;[key: string]: unknown } | null = null
             let lastError: { code?: string; message?: string; details?: string | null } | null = null
+            let idempotentPk = false  // PK衝突=既にサーバに在る確証。確認selectが失敗しても成功扱いにする
 
             // 初回は登録時にローカル採番した番号。衝突時のみ下で振り直す。
             let managementNumber: string | null = reg.management_number
@@ -627,14 +634,17 @@ async function syncPendingRegistrations(): Promise<number> {
 
                 const kind = classifyUniqueViolation(error)
                 if (kind === 'pk') {
-                    // 同じ登録(temp_id)が既にサーバに存在 = 前回attemptか別セッションの再送。
-                    // ＝冪等成功。サーバの実レコードを取り直してキャッシュを正とする。
+                    // 同じ登録(temp_id)が既にサーバに存在 = 前回attemptか別セッションの再送＝冪等成功。
+                    // PK 23505 自体が「行が在る」確証。確認selectが弱電波で失敗しても成功扱いにする
+                    // (ここを select 成否に依存させると永久pending=4/21無限ループ再来になる)。
+                    // maybeSingle: 0行を例外にしない。取れた時だけ後段でキャッシュを本物に上書き。
                     const { data: existing } = await supabase
                         .from('trees')
                         .select('*')
                         .eq('id', reg.temp_id)
-                        .single()
+                        .maybeSingle()
                     if (existing) newTree = existing as { id: string;[key: string]: unknown }
+                    else idempotentPk = true
                     break
                 }
                 if (kind === 'other') break  // 未知の一意制約(例: trees_tree_number_key)はリトライしない
@@ -642,21 +652,26 @@ async function syncPendingRegistrations(): Promise<number> {
                 console.warn(`管理番号が重複 (${managementNumber}) — 再採番して再試行 ${attempt + 1}/${MAX_RETRIES}`)
             }
 
-            if (!newTree) {
+            // newTree取得 or idempotentPk(=PK確証) のどちらかで「サーバに着地済み」。
+            if (!newTree && !idempotentPk) {
                 console.error(`Sync registration failed:`, lastError)
                 continue
             }
 
-            // id は temp_id と同一 → 差し替え(delete)不要。同じ主キーへ上書きputでキャッシュを本物に。
-            const species = await db.species.get(reg.species_id)
-            await db.trees.put({
-                ...newTree,
-                shipped_at: null,
-                species: species ? { id: species.id, name: species.name } : { id: reg.species_id, name: reg.species_name },
-                client: null,
-            } as CachedTree)
+            // 本物レコードが取れた時だけキャッシュを上書き(id不変なのでdelete不要・同一主キーへput)。
+            // idempotentPkで取れなかった時はローカルの完全な登録データを温存する
+            // (thinオブジェクトで height/price/mgmt 等を clobber しない)。次回refreshで本物に整う。
+            if (newTree) {
+                const species = await db.species.get(reg.species_id)
+                await db.trees.put({
+                    ...newTree,
+                    shipped_at: null,
+                    species: species ? { id: species.id, name: species.name } : { id: reg.species_id, name: reg.species_name },
+                    client: null,
+                } as CachedTree)
+            }
 
-            // 同期済みとしてマーク
+            // 同期済みとしてマーク(PK確証があれば必ずマーク＝永久pendingを防ぐ)
             if (reg.id !== undefined) {
                 await db.pendingRegistrations.update(reg.id, { synced: 1 })
             }
