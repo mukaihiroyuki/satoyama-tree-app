@@ -531,11 +531,13 @@ export function getSyncedNewId(tempId: string): string | undefined {
 }
 
 // 23505(unique_violation) がどの一意制約由来かを判定する純粋関数。
-// PostgREST は message / details に制約名・列名を載せて返すため両方を見る:
-//   PK衝突       → constraint "trees_pkey" / Key (id)=(...) already exists
-//   管理番号衝突  → constraint "idx_trees_management_number" / Key (management_number)=(...)
-// 制約名は本番DBで実在を確認済み(2026-07-06: trees_pkey / idx_trees_management_number)。
-// 'other'(例: trees_tree_number_key)は再採番も冪等成功もせず、そのまま失敗扱いにする。
+// 2026-07-06 本番RESTで実エラーを採取して確定した実測値:
+//   PK衝突       → message: '...unique constraint "trees_pkey"'                (details=null)
+//   管理番号衝突  → message: '...unique constraint "idx_trees_management_number"' (details=null)
+//   tree_number  → message: '...unique constraint "trees_tree_number_key"'       (details=null) → 'other'
+// ※ PostgREST は details を null にして返すため message の制約名で判別する
+//   (Key(col) の正規表現は将来 details が載る構成への保険)。
+// 'other'(廃止tree_numberの制約等)は再採番も冪等成功もせず、そのまま失敗扱いにする。
 export function classifyUniqueViolation(
     error: { message?: string; details?: string | null }
 ): 'pk' | 'mgmt' | 'other' {
