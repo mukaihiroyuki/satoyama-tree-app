@@ -3,7 +3,6 @@ import Link from 'next/link'
 import OfflineCacheWarmer from '@/components/OfflineCacheWarmer'
 import ScanErrorAlerts from '@/components/ScanErrorAlerts'
 import ClearPendingQueueButton from '@/components/ClearPendingQueueButton'
-import { getFiscalYear } from '@/lib/fiscal-year'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,51 +33,33 @@ async function getTreeStats() {
   }
 }
 
-// 出荷済みの樹木を「年度別」に集計（年度は4月〜翌3月）
-// 注: 出荷日は trees テーブルに無く、shipments テーブルが正本。
-//     tree-repository と同様に shipment_items→shipments を JOIN して取得する。
+// 出荷済みの樹木を「年度別」に集計（年度は4月〜翌3月）。
+// 集計はDB側RPC get_shipped_by_fiscal_year() が担う（アプリ側で全件取得・for集計しない）。
+// 返り: 年度開始年(start_year)ごとの件数。start_year=null は出荷日を特定できない件数。
 async function getShippedByFiscalYear() {
   const supabase = await createClient()
 
-  // Supabaseは1リクエストで最大1000行しか返さないため、1000件ずつ全件取り切る。
-  // （出荷済みは数千本あり得るので、ページングしないと年度別合計が1000で頭打ちになる）
-  const PAGE = 1000
-  type Row = { shipment_items: { shipments: { shipped_at: string | null } | null }[] | null }
-  const rows: Row[] = []
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supabase
-      .from('trees')
-      .select('shipment_items(shipments(shipped_at))')
-      .eq('status', 'shipped')
-      .range(from, from + PAGE - 1)
-
-    if (error) {
-      console.error('Error fetching shipped trees:', error)
-      return { years: [], unknown: 0 }
-    }
-    // Supabaseはネスト関係(shipments)を配列型と推論するが、実体は1対1のオブジェクト。
-    // tree-repository と同じ実行時の形に合わせるため unknown 経由でキャストする。
-    rows.push(...((data ?? []) as unknown as Row[]))
-    if (!data || data.length < PAGE) break // 最後のページ
+  const { data, error } = await supabase.rpc('get_shipped_by_fiscal_year')
+  if (error) {
+    console.error('Error fetching shipped trees:', error)
+    return { years: [], unknown: 0 }
   }
 
-  const map = new Map<number, { reiwa: number; startYear: number; count: number }>()
+  type AggRow = { start_year: number | null; cnt: number }
   let unknown = 0 // 出荷日が特定できないもの（出荷明細が無い等）
-
-  for (const row of rows) {
-    // shipment_items[0].shipments.shipped_at をフラット化（tree-repository と同じ取り方）
-    const shippedAt = row.shipment_items?.[0]?.shipments?.shipped_at || null
-    const fy = getFiscalYear(shippedAt)
-    if (!fy) {
-      unknown++
+  const years: { reiwa: number; startYear: number; count: number }[] = []
+  for (const row of (data ?? []) as AggRow[]) {
+    if (row.start_year === null) {
+      unknown += Number(row.cnt)
       continue
     }
-    const cur = map.get(fy.reiwa) || { reiwa: fy.reiwa, startYear: fy.startYear, count: 0 }
-    cur.count++
-    map.set(fy.reiwa, cur)
+    years.push({
+      reiwa: row.start_year - 2018, // 令和 = 年度開始年 - 2018（fiscal-year.ts と同一）
+      startYear: row.start_year,
+      count: Number(row.cnt),
+    })
   }
-
-  const years = [...map.values()].sort((a, b) => b.reiwa - a.reiwa) // 新しい年度順
+  years.sort((a, b) => b.reiwa - a.reiwa) // 新しい年度順
   return { years, unknown }
 }
 
